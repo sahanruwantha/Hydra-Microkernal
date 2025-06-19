@@ -11,6 +11,8 @@ GRUB_DIR=$(BOOT_DIR)/grub
 
 all: os-image
 
+build: os-image
+
 $(KERNEL_OBJ): kernel/kernel.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
