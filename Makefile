@@ -1,11 +1,15 @@
 CC=gcc
 LD=ld
 
-CFLAGS=-m32 -std=gnu99 -ffreestanding -O2 -Wall -Wextra -fno-pie -fno-pic
+CFLAGS=-m32 -std=gnu99 -ffreestanding -O2 -Wall -Wextra -fno-pie -fno-pic -I.
 LDFLAGS=-T linker.ld -nostdlib -m elf_i386
 
 BUILD_DIR=build
-KERNEL_OBJ=$(BUILD_DIR)/kernel.o
+KERNEL_SRCS=$(wildcard kernel/*.c)
+COMMON_SRCS=include/common.c
+KERNEL_OBJS=$(KERNEL_SRCS:kernel/%.c=$(BUILD_DIR)/%.o)
+COMMON_OBJS=$(COMMON_SRCS:include/%.c=$(BUILD_DIR)/%.o)
+ALL_OBJS=$(KERNEL_OBJS) $(COMMON_OBJS)
 KERNEL_BIN=$(BUILD_DIR)/kernel.bin
 ISO_DIR=$(BUILD_DIR)/isodir
 BOOT_DIR=$(ISO_DIR)/boot
@@ -22,10 +26,13 @@ create_dirs:
 	mkdir -p $(BUILD_DIR)
 	mkdir -p $(GRUB_DIR)
 
-$(KERNEL_OBJ): kernel/kernel.c create_dirs
+$(BUILD_DIR)/%.o: kernel/%.c create_dirs
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(KERNEL_BIN): $(KERNEL_OBJ)
+$(BUILD_DIR)/%.o: include/%.c create_dirs
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(KERNEL_BIN): $(ALL_OBJS)
 	$(LD) $(LDFLAGS) -o $@ $^
 
 os-image: $(KERNEL_BIN)

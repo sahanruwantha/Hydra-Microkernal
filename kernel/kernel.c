@@ -1,4 +1,5 @@
 #include "../include/common.h"
+#include "../include/kernel.h"
 #include <stdint.h>
 
 #define MULTIBOOT_HEADER_MAGIC 0x1BADB002
@@ -13,8 +14,8 @@ const uint32_t multiboot_header[] = {
 };
 
 
-
 void kernel_main(void) {
-    terminal_initialize();
-    terminal_writestring("Hello, From PakayaOS!");
+  terminal_initialize();
+  PANIC("booted");
+  terminal_writestring("Hello, From PakayaOS!");
 }
