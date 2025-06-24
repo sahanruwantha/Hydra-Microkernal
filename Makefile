@@ -6,7 +6,7 @@ LDFLAGS=-T linker.ld -nostdlib -m elf_i386
 
 BUILD_DIR=build
 KERNEL_SRCS=$(wildcard kernel/*.c)
-COMMON_SRCS=include/common.c
+COMMON_SRCS=$(wildcard include/*.c)
 KERNEL_OBJS=$(KERNEL_SRCS:kernel/%.c=$(BUILD_DIR)/%.o)
 COMMON_OBJS=$(COMMON_SRCS:include/%.c=$(BUILD_DIR)/%.o)
 ALL_OBJS=$(KERNEL_OBJS) $(COMMON_OBJS)

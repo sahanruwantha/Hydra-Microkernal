@@ -1,6 +1,6 @@
 #include "../include/common.h"
 #include "../include/kernel.h"
-#include <stdint.h>
+#include "../include/mem_allc.h"
 
 #define MULTIBOOT_HEADER_MAGIC 0x1BADB002
 #define MULTIBOOT_HEADER_FLAGS 0x00000003
@@ -16,6 +16,10 @@ const uint32_t multiboot_header[] = {
 
 void kernel_main(void) {
   terminal_initialize();
+  paddr_t paddr0 = alloc_pages(2);
+  paddr_t paddr1 = alloc_pages(1);
+  terminal_printf("alloc_pages test: paddr0=%x\n", paddr0);
+  terminal_printf("alloc_pages test: paddr1=%x\n", paddr1);
   PANIC("booted");
   terminal_writestring("Hello, From PakayaOS!");
 }

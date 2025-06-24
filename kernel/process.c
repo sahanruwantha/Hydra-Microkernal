@@ -1,7 +1,7 @@
 #include "../include/process.h"
 #include <stdlib.h>
 
-static int next_pid = 1;
+// static int next_pid = 1;
 
 /*pcb_t* create_process(void (*entry_point)(void)) {*/
 /*  // 1. Allocate memory for a new pcb*/
