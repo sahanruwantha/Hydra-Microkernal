@@ -1,54 +1,117 @@
-CC=gcc
-LD=ld
-ASM=nasm
+CROSS_COMPILE = riscv64-unknown-elf-
+CC = $(CROSS_COMPILE)gcc
+AS = $(CROSS_COMPILE)gcc
+LD = $(CROSS_COMPILE)ld
+OBJCOPY = $(CROSS_COMPILE)objcopy
 
-CFLAGS=-m32 -std=gnu99 -ffreestanding -O2 -Wall -Wextra -fno-pie -fno-pic -I.
-LDFLAGS=-T linker.ld -nostdlib -m elf_i386
-ASMFLAGS=-f elf32
+CFLAGS = -Wall -O2 -ffreestanding -nostdlib -nostartfiles -mcmodel=medany -I./kernal -I./lib/libnet -I./lib/libc -I./lib/libhydra
+ASFLAGS = -mcmodel=medany
+LDFLAGS = -T boot/linker.ld
 
-BUILD_DIR=build
-KERNEL_SRCS=$(wildcard kernel/*.c)
-COMMON_SRCS=$(wildcard include/*.c)
-ASM_SRCS=$(wildcard kernel/*.s)
-KERNEL_OBJS=$(KERNEL_SRCS:kernel/%.c=$(BUILD_DIR)/%.o)
-COMMON_OBJS=$(COMMON_SRCS:include/%.c=$(BUILD_DIR)/%.o)
-ASM_OBJS=$(ASM_SRCS:kernel/%.s=$(BUILD_DIR)/%.o)
-ALL_OBJS=$(KERNEL_OBJS) $(COMMON_OBJS) $(ASM_OBJS)
-KERNEL_BIN=$(BUILD_DIR)/kernel.bin
-ISO_DIR=$(BUILD_DIR)/isodir
-BOOT_DIR=$(ISO_DIR)/boot
-GRUB_DIR=$(BOOT_DIR)/grub
-ISO_FILE=$(BUILD_DIR)/PakayaOs.iso
+# Auto-detect source files
+KERNEL_C_SOURCES = $(wildcard kernal/*.c)
+KERNEL_S_SOURCES = $(wildcard kernal/*.s)
+LIBC_C_SOURCES = $(wildcard lib/libc/*.c)
+LIBNET_C_SOURCES = $(wildcard lib/libnet/*.c)
+LIBHYDRA_C_SOURCES = $(wildcard lib/libhydra/*.c)
+SERVER_C_SOURCES = $(wildcard server/*.c)
+APPS_C_SOURCES = $(wildcard apps/*.c) $(wildcard apps/raytracer/*.c)
 
-.PHONY: all build clean create_dirs
+# Convert sources to object files
+KERNEL_C_OBJS = $(KERNEL_C_SOURCES:.c=.o)
+KERNEL_S_OBJS = $(KERNEL_S_SOURCES:.s=.o)
+LIBC_OBJS = $(LIBC_C_SOURCES:.c=.o)
+LIBNET_OBJS = $(LIBNET_C_SOURCES:.c=.o)
+LIBHYDRA_OBJS = $(LIBHYDRA_C_SOURCES:.c=.o)
+SERVER_OBJS = $(SERVER_C_SOURCES:.c=.o)
+APPS_OBJS = $(APPS_C_SOURCES:.c=.o)
 
-all: os-image
+# All object files
+OBJS = boot/start.o \
+       $(KERNEL_C_OBJS) $(KERNEL_S_OBJS) \
+       $(LIBC_OBJS) $(LIBNET_OBJS) $(LIBHYDRA_OBJS) \
+       $(SERVER_OBJS) $(APPS_OBJS)
 
-build: os-image
+all: kernel.elf
 
-create_dirs:
-	mkdir -p $(BUILD_DIR)
-	mkdir -p $(GRUB_DIR)
+boot/start.o: boot/start.s
+	$(CC) $(ASFLAGS) -c $< -o $@
 
-$(BUILD_DIR)/%.o: kernel/%.c create_dirs
+kernal/%.o: kernal/%.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(BUILD_DIR)/%.o: include/%.c create_dirs
+kernal/%.o: kernal/%.s
+	$(CC) $(ASFLAGS) -c $< -o $@
+
+lib/libnet/%.o: lib/libnet/%.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(BUILD_DIR)/%.o: kernel/%.s create_dirs
-	$(ASM) $(ASMFLAGS) $< -o $@
+lib/libc/%.o: lib/libc/%.c
+	$(CC) $(CFLAGS) -c $< -o $@
 
-$(KERNEL_BIN): $(ALL_OBJS)
-	$(LD) $(LDFLAGS) -o $@ $^
+lib/libnet/%.o: lib/libnet/%.c
+	$(CC) $(CFLAGS) -c $< -o $@
 
-os-image: $(KERNEL_BIN)
-	cp grub/grub.cfg $(GRUB_DIR)
-	cp $(KERNEL_BIN) $(BOOT_DIR)/kernel
-	grub-mkrescue -o $(ISO_FILE) $(ISO_DIR)
+lib/libhydra/%.o: lib/libhydra/%.c
+	$(CC) $(CFLAGS) -c $< -o $@
 
-run: os-image
-	qemu-system-i386 -boot d -cdrom $(ISO_FILE) -m 512M -no-reboot -no-shutdown
+server/%.o: server/%.c
+	$(CC) $(CFLAGS) -c $< -o $@
+
+apps/%.o: apps/%.c
+	$(CC) $(CFLAGS) -c $< -o $@
+
+apps/raytracer/%.o: apps/raytracer/%.c
+	$(CC) $(CFLAGS) -c $< -o $@
+
+kernel.elf: $(OBJS)
+	@echo "Linking kernel..."
+	$(CC) $(CFLAGS) -o $@ $(OBJS) $(LDFLAGS)
+	@echo "Build complete: kernel.elf"
+
+# Debug target to show detected files
+debug-files:
+	@echo "Detected C sources:"
+	@echo "  Kernel: $(KERNEL_C_SOURCES)"
+	@echo "  LibC: $(LIBC_C_SOURCES)"
+	@echo "  LibNet: $(LIBNET_C_SOURCES)"
+	@echo "  LibHydra: $(LIBHYDRA_C_SOURCES)"
+	@echo "  Server: $(SERVER_C_SOURCES)"
+	@echo "  Apps: $(APPS_C_SOURCES)"
+	@echo "Detected S sources:"
+	@echo "  Kernel: $(KERNEL_S_SOURCES)"
+	@echo "All objects: $(OBJS)"
 
 clean:
-	rm -rf $(BUILD_DIR)
+	@echo "Cleaning build artifacts..."
+	rm -f $(OBJS) kernel.elf
+	@echo "Clean complete"
+
+# QEMU run targets
+run: kernel.elf
+	@echo "Starting QEMU..."
+	qemu-system-riscv64 -machine virt -nographic -kernel $<
+
+run-debug: kernel.elf
+	@echo "Starting QEMU with GDB server..."
+	qemu-system-riscv64 -machine virt -nographic -kernel $< -s -S
+
+# Network-enabled QEMU (for testing network features)
+run-net: kernel.elf
+	@echo "Starting QEMU with network..."
+	qemu-system-riscv64 -machine virt -nographic -kernel $< \
+		-netdev user,id=net0 \
+		-device virtio-net-device,netdev=net0
+
+# Help target
+help:
+	@echo "Available targets:"
+	@echo "  all          - Build kernel.elf (default)"
+	@echo "  clean        - Remove build artifacts"
+	@echo "  run          - Run kernel in QEMU"
+	@echo "  run-debug    - Run kernel in QEMU with GDB server"
+	@echo "  run-net      - Run kernel in QEMU with network"
+	@echo "  debug-files  - Show detected source files"
+	@echo "  help         - Show this help"
+
+.PHONY: all clean run run-debug run-net debug-files help
