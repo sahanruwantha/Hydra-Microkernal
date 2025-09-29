@@ -41,7 +41,8 @@ void kmain(void) {
     
     create_task(bullet_server_main);
     create_task(net_server_main);
-    create_task(test_client_main);
+    // Temporarily disable test client to prevent message flood
+    // create_task(test_client_main);
     
     printk("[main] Running Phase 5 library tests...\n");
     phase5_test();

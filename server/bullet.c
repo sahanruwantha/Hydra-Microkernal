@@ -101,8 +101,10 @@ void bullet_handle_client_message(int sender_pid, char *msg_data, int msg_size) 
                 
                 int req_id = handle_migration_request(sender_pid, target_node, data, data_size);
                 
-                // Send response back to client
-                syscall_send_msg(sender_pid, &req_id, sizeof(req_id));
+                // Send response back to client with error handling
+                if (syscall_send_msg(sender_pid, &req_id, sizeof(req_id)) < 0) {
+                    printk("[bullet] Failed to send migration response to PID %d\n", sender_pid);
+                }
             }
             break;
             
@@ -111,7 +113,12 @@ void bullet_handle_client_message(int sender_pid, char *msg_data, int msg_size) 
                 int req_id = ((int*)msg_data)[1];
                 if (req_id >= 0 && req_id < bullet.num_requests) {
                     int status = bullet.requests[req_id].status;
-                    syscall_send_msg(sender_pid, &status, sizeof(status));
+                    if (syscall_send_msg(sender_pid, &status, sizeof(status)) < 0) {
+                        printk("[bullet] Failed to send status response to PID %d\n", sender_pid);
+                    }
+                } else {
+                    int error_status = -1;
+                    syscall_send_msg(sender_pid, &error_status, sizeof(error_status));
                 }
             }
             break;
@@ -129,12 +136,21 @@ void bullet_server_main(void) {
     printk("[bullet] Bullet server starting main loop\n");
     
     char msg_buffer[256];
+    int loop_count = 0;
     
     while (bullet.active) {
+        loop_count++;
+        
+        // Debug output every 1000 iterations
+        if (loop_count % 1000 == 0) {
+            printk("[bullet] Server loop iteration %d\n", loop_count);
+        }
+        
         // Check for incoming messages
         int msg_size = syscall_recv_msg(-1, msg_buffer, sizeof(msg_buffer)); // -1 = any sender
         
         if (msg_size > 0) {
+            printk("[bullet] Received message of %d bytes\n", msg_size);
             int sender_pid = ((int*)msg_buffer)[0]; // First int is sender PID
             bullet_handle_client_message(sender_pid, msg_buffer + 4, msg_size - 4);
         }
@@ -157,11 +173,24 @@ int bullet_migrate_process(int target_node, void *process_data, int size) {
     cmd_data[2] = target_node;
     cmd_data[3] = size;
     
-    // Send request to bullet server
-    syscall_send_msg(BULLET_SERVER_PID, cmd_data, sizeof(cmd_data));
+    // Send request to bullet server with retry logic
+    int retries = 3;
+    while (retries > 0) {
+        if (syscall_send_msg(BULLET_SERVER_PID, cmd_data, sizeof(cmd_data)) >= 0) {
+            break;
+        }
+        retries--;
+        // Simple delay before retry
+        for (volatile int i = 0; i < 1000; i++);
+    }
+    
+    if (retries == 0) {
+        printk("[bullet-client] Failed to send migration request after retries\n");
+        return -1;
+    }
     
     // Wait for response
-    int req_id;
+    int req_id = -1;
     syscall_recv_msg(BULLET_SERVER_PID, &req_id, sizeof(req_id));
     
     return req_id;
@@ -173,11 +202,24 @@ int bullet_check_migration_status(int req_id) {
     cmd_data[1] = 2; // status query command
     cmd_data[2] = req_id;
     
-    // Send request to bullet server
-    syscall_send_msg(BULLET_SERVER_PID, cmd_data, sizeof(cmd_data));
+    // Send request to bullet server with retry logic
+    int retries = 3;
+    while (retries > 0) {
+        if (syscall_send_msg(BULLET_SERVER_PID, cmd_data, sizeof(cmd_data)) >= 0) {
+            break;
+        }
+        retries--;
+        // Simple delay before retry
+        for (volatile int i = 0; i < 1000; i++);
+    }
+    
+    if (retries == 0) {
+        printk("[bullet-client] Failed to send status request after retries\n");
+        return -1;
+    }
     
     // Wait for response
-    int status;
+    int status = -1;
     syscall_recv_msg(BULLET_SERVER_PID, &status, sizeof(status));
     
     return status;

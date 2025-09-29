@@ -312,12 +312,21 @@ void net_server_main(void) {
     printk("[netserv] Network server starting main loop\n");
     
     char msg_buffer[256];
+    int loop_count = 0;
     
     while (netserv.active) {
+        loop_count++;
+        
+        // Debug output every 1000 iterations
+        if (loop_count % 1000 == 0) {
+            printk("[netserv] Server loop iteration %d\n", loop_count);
+        }
+        
         // Check for incoming messages from clients
         int msg_size = syscall_recv_msg(-1, msg_buffer, sizeof(msg_buffer)); // -1 = any sender
         
         if (msg_size > 0) {
+            printk("[netserv] Received message of %d bytes\n", msg_size);
             int sender_pid = ((int*)msg_buffer)[0]; // First int is sender PID
             net_handle_client_message(sender_pid, msg_buffer + 4, msg_size - 4);
         }
@@ -339,9 +348,22 @@ int net_socket(socket_type_t type) {
     cmd_data[1] = 1; // socket command
     cmd_data[2] = type;
     
-    syscall_send_msg(NET_SERVER_PID, cmd_data, sizeof(cmd_data));
+    // Send with retry logic
+    int retries = 3;
+    while (retries > 0) {
+        if (syscall_send_msg(NET_SERVER_PID, cmd_data, sizeof(cmd_data)) >= 0) {
+            break;
+        }
+        retries--;
+        for (volatile int i = 0; i < 1000; i++); // delay
+    }
     
-    int sock_id;
+    if (retries == 0) {
+        printk("[net-client] Failed to send socket request after retries\n");
+        return -1;
+    }
+    
+    int sock_id = -1;
     syscall_recv_msg(NET_SERVER_PID, &sock_id, sizeof(sock_id));
     
     return sock_id;
@@ -354,9 +376,22 @@ int net_bind(int sock_id, uint32_t ip, uint16_t port) {
     cmd_data[2] = sock_id;
     cmd_data[3] = (ip << 16) | port; // pack IP and port
     
-    syscall_send_msg(NET_SERVER_PID, cmd_data, sizeof(cmd_data));
+    // Send with retry logic
+    int retries = 3;
+    while (retries > 0) {
+        if (syscall_send_msg(NET_SERVER_PID, cmd_data, sizeof(cmd_data)) >= 0) {
+            break;
+        }
+        retries--;
+        for (volatile int i = 0; i < 1000; i++); // delay
+    }
     
-    int result;
+    if (retries == 0) {
+        printk("[net-client] Failed to send bind request after retries\n");
+        return -1;
+    }
+    
+    int result = -1;
     syscall_recv_msg(NET_SERVER_PID, &result, sizeof(result));
     
     return result;
@@ -376,9 +411,22 @@ int net_socket_send(int sock_id, const void *data, int len) {
         ((char*)&cmd_data[4])[i] = ((const char*)data)[i];
     }
     
-    syscall_send_msg(NET_SERVER_PID, cmd_data, 16 + copy_len);
+    // Send with retry logic
+    int retries = 3;
+    while (retries > 0) {
+        if (syscall_send_msg(NET_SERVER_PID, cmd_data, 16 + copy_len) >= 0) {
+            break;
+        }
+        retries--;
+        for (volatile int i = 0; i < 1000; i++); // delay
+    }
     
-    int result;
+    if (retries == 0) {
+        printk("[net-client] Failed to send socket send request after retries\n");
+        return -1;
+    }
+    
+    int result = -1;
     syscall_recv_msg(NET_SERVER_PID, &result, sizeof(result));
     
     return result;

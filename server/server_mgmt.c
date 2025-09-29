@@ -42,23 +42,27 @@ void server_demo(void) {
     int req_id = bullet_migrate_process(2, test_data, sizeof(test_data));
     printk("[demo] Migration request ID: %d\n", req_id);
     
-    // Wait a bit and check status
-    for (volatile int i = 0; i < 10000; i++); // simple delay
+    // Wait a bit and check status - increased delay to reduce message frequency
+    for (volatile int i = 0; i < 50000; i++); // increased delay
     int status = bullet_check_migration_status(req_id);
     printk("[demo] Migration status: %d\n", status);
     
-    // Test network server
+    // Test network server with rate limiting
     printk("[demo] Testing network server...\n");
     int sock = net_socket(SOCK_TCP);
     printk("[demo] Created TCP socket: %d\n", sock);
     
     if (sock > 0) {
         int bind_result = net_bind(sock, 0x7F000001, 8080); // 127.0.0.1:8080
-        printk("[demo] Bind result: %d\n", bind_result);
-        
-        char msg[] = "Hello, Network!";
-        int send_result = net_socket_send(sock, msg, sizeof(msg));
-        printk("[demo] Send result: %d\n", send_result);
+        if (bind_result >= 0) {
+            printk("[demo] Bind result: %d\n", bind_result);
+            
+            char msg[] = "Hello, Network!";
+            int send_result = net_socket_send(sock, msg, sizeof(msg));
+            printk("[demo] Send result: %d\n", send_result);
+        } else {
+            printk("[demo] Bind failed: %d\n", bind_result);
+        }
     }
     
     printk("[demo] Server demonstration completed\n");
@@ -69,11 +73,14 @@ void test_client_main(void) {
     int my_pid = syscall_get_pid();
     printk("[client] Test client started (PID: %d)\n", my_pid);
     
-    // Give servers time to start
-    for (volatile int i = 0; i < 50000; i++);
+    // Give servers more time to start and initialize
+    for (volatile int i = 0; i < 100000; i++);
     
-    // Run the demo
+    // Run the demo once - avoid repeated testing that exhausts message slots
     server_demo();
+    
+    // Add a longer delay before potential exit to let messages clear
+    for (volatile int i = 0; i < 50000; i++);
     
     printk("[client] Test client finished\n");
 }
