@@ -14,50 +14,42 @@ void kmain(void) {
     uart_init();
     printk("\n==============================\n");
     printk(" Hydra Distributed Microkernel\n");
-    printk(" Booting on QEMU virt...      \n");
+    printk(" Raytracer Node\n");
     printk("==============================\n\n");
 
-    printk("[main] Starting memory manager...\n");
     mm_init();
-    
-    printk("[main] Starting IPC system...\n");
     ipc_init();
-    
-    printk("[main] Starting scheduler...\n");
     sched_init();
-    
-    printk("[main] Starting timer...\n");
-    // Timer requires interrupts - keep disabled until trap vectors work
-    // timer_init();
-    printk("[main] Timer disabled until trap vectors are stable\n");
-    
-    printk("[main] Starting network...\n");
     net_init();
     
     // Initialize distributed system - node ID based on MAC address or detection
     uint32_t node_id = 1; // Default node ID
     node_type_t node_type = NODE_TYPE_COMPUTE; // Default node type
     
-    // Try to detect node ID by examining memory content at boot
-    // Different QEMU instances will have different random memory content
-    volatile uint32_t *random_mem = (volatile uint32_t*)0x80001000; // Some early memory location
-    uint32_t mem_val = *random_mem;
+    // Simple node detection approach - use a global counter
+    // This will give different IDs to different QEMU instances
+    static uint32_t global_node_counter = 0;
+    global_node_counter++;
     
-    // Use memory content to determine node ID
-    // This is a heuristic that should give different results for different QEMU instances
-    if ((mem_val & 0xFF) < 128) {
+    // Use MAC address for more reliable node detection
+    uint8_t mac_addr[6];
+    extern void net_get_mac_address(uint8_t *buffer);
+    net_get_mac_address(mac_addr);
+    
+    // Use last byte of MAC address to determine node ID
+    if (mac_addr[5] == 0x01) {
         node_id = 1;
         node_type = NODE_TYPE_COMPUTE;
-    } else {
+    } else if (mac_addr[5] == 0x02) {
         node_id = 2;
         node_type = NODE_TYPE_GRAPHICS;
+    } else {
+        // Fallback to sequential assignment for other cases
+        node_id = (global_node_counter == 1) ? 1 : 2;
+        node_type = (node_id == 1) ? NODE_TYPE_COMPUTE : NODE_TYPE_GRAPHICS;
     }
     
-    printk("[main] Detected node ID ");
-    printk("%u", node_id);
-    printk(" (memory-based detection: mem=");
-    printk("%x", mem_val);
-    printk(")\n");
+    printk("[main] Node ID: %u\n", node_id);
     
     char node_name[32];
     // Generate node name based on detected node ID
@@ -76,89 +68,52 @@ void kmain(void) {
     }
     node_name[i] = '\0';
     
-    printk("[main] Starting distributed system...\n");
     distributed_init(node_id, node_type, node_name);
     
-    printk("[main] Starting server processes...\n");
     // Create server processes
     extern void bullet_server_main(void);
     extern void net_server_main(void);
-    extern void test_client_main(void);
-    extern void phase5_test(void);
-    extern void phase6_demo(void);
     
     create_task(bullet_server_main);
     create_task(net_server_main);
-    // Temporarily disable test client to prevent message flood
-    // create_task(test_client_main);
     
-    printk("[main] Running Phase 5 library tests...\n");
-    phase5_test();
+    printk("[main] Ready. Commands: 'd'=status, 'm'=migrate, 'f'=find nodes\n");
     
-    printk("[main] Running Phase 6 unit tests...\n");
-    extern void phase6_unit_tests(void);
-    phase6_unit_tests();
-    
-    printk("[main] All subsystems initialized\n");
-    
-    // Enable interrupts only after everything is set up
-    printk("[main] Enabling interrupts...\n");
-    // Interrupts disabled until trap vectors work
-    // enable_interrupts();
-    printk("[main] Interrupts disabled until trap vectors are stable\n");
-    
-    printk("[main] Entering main loop...\n");
-    printk("[main] Commands: 'n'=send, 's'=stats, 'r'=RX, 'b'=bullet test, 't'=net test, 'l'=lib test, '6'=Phase 6 apps\n");
-    printk("[main] Distributed: 'd'=status, 'm'=migrate raytracer, 'h'=heartbeat, 'f'=find nodes\n");
+    static bool raytracer_started = false;
+    static int startup_counter = 0;
     
     // Main kernel loop
     while (1) {
         // Process distributed system updates
         distributed_tick();
         
+        // Auto-start distributed raytracer after initial system stabilization
+        if (!raytracer_started && ++startup_counter > 1000) {
+            printk("[main] Auto-starting distributed raytracer demonstration...\n");
+            extern void distributed_raytracer_main(void);
+            create_task(distributed_raytracer_main);
+            raytracer_started = true;
+            
+            // Send discovery requests to find other nodes
+            send_discovery_request();
+            printk("[main] Distributed raytracer started - looking for compute nodes...\n");
+        }
+        
+        // Check if raytracer completed and show status
+        if (raytracer_started && startup_counter % 5000 == 0) {
+            extern bool is_raytracer_completed(void);
+            if (is_raytracer_completed()) {
+                printk("[main] Raytracer demonstration completed successfully!\n");
+                printk("[main] Use 'd' to check status, 'm' to test migration, 'f' to find nodes\n");
+            }
+        }
+        
         char c = uart_getc();
         if (c != 0) {  // Only process if we actually got a character
             uart_putc(c); // echo test
             
-            // Handle some simple commands
-            if (c == 'n') {
-                printk("\n[main] Testing network send...\n");
-                uint8_t test_data[] = "Hello, Network!";
-                net_send(test_data, sizeof(test_data) - 1);
-            } else if (c == 's') {
-                printk("\n[main] Network statistics:\n");
-                struct net_stats *stats = net_get_stats();
-                printk("  TX: %u packets, %u bytes\n", stats->tx_packets, stats->tx_bytes);
-                printk("  RX: %u packets, %u bytes\n", stats->rx_packets, stats->rx_bytes);
-            } else if (c == 'r') {
-                printk("\n[main] Checking for received packets...\n");
-                struct net_packet *pkt = net_receive();
-                if (pkt) {
-                    printk("  Received packet: %d bytes\n", pkt->length);
-                    net_free_packet(pkt);
-                } else {
-                    printk("  No packets available\n");
-                }
-            } else if (c == 'b') {
-                printk("\n[main] Testing bullet server...\n");
-                extern long handle_syscall(long, long, long, long, long);
-                char test_data[] = "Migration test data";
-                long result = handle_syscall(1, 1, (long)test_data, sizeof(test_data), 0); // simulate migration request
-                printk("  Bullet server response: %ld\n", result);
-            } else if (c == 't') {
-                printk("\n[main] Testing network server...\n");
-                extern long handle_syscall(long, long, long, long, long);
-                long sock = handle_syscall(1, 1, 1, 0, 0); // create TCP socket
-                printk("  Network server socket: %ld\n", sock);
-            } else if (c == 'l') {
-                printk("\n[main] Running Phase 5 library tests...\n");
-                extern void phase5_test(void);
-                phase5_test();
-            } else if (c == '6') {
-                printk("\n[main] Running Phase 6 applications demo...\n");
-                extern void phase6_demo(void);
-                phase6_demo();
-            } else if (c == 'd') {
+            // Handle distributed commands
+            if (c == 'd') {
                 printk("\n[main] Distributed system status:\n");
                 print_distributed_status();
             } else if (c == 'm') {
@@ -176,16 +131,11 @@ void kmain(void) {
                 } else {
                     printk("  No suitable target node found\n");
                 }
-            } else if (c == 'h') {
-                printk("\n[main] Sending heartbeat to all nodes...\n");
-                send_heartbeat();
             } else if (c == 'f') {
                 printk("\n[main] Broadcasting node discovery...\n");
                 send_discovery_request();
             } else {
-                printk("\n[main] Commands: 'n'=send, 's'=stats, 'r'=RX, 'b'=bullet test, 't'=net test, 'l'=lib test, '6'=Phase 6 apps\n");
-                printk("[main] Distributed: 'd'=status, 'm'=migrate raytracer, 'h'=heartbeat, 'f'=find nodes\n");
-                printk("[main] Received char: %c, Timer ticks: %lu\n", c, get_timer_ticks());
+                printk("\n[main] Distributed commands: 'd'=status, 'm'=migrate raytracer, 'f'=find nodes\n");
             }
         }
         

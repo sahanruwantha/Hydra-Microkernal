@@ -154,4 +154,10 @@ const char *node_status_to_string(node_status_t status);
 const char *migration_state_to_string(migration_state_t state);
 void print_distributed_status(void);
 
+// Helper functions for applications
+uint32_t get_local_node_id(void);
+int get_distributed_node_count(void);
+uint32_t get_best_compute_node_id(void);
+uint32_t get_current_process_id(void);
+
 #endif // DISTRIBUTED_H

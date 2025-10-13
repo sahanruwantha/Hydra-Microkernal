@@ -180,9 +180,6 @@ int send_message(int receiver_pid, const void *data, int size) {
 int recv_message(int sender_pid, void *buffer, int max_size) {
     int current_pid = current_task;
     
-    printk("[ipc] Receive request: PID %d waiting for message from PID %d (max %d bytes)\n", 
-           current_pid, sender_pid, max_size);
-    
     if (!buffer) {
         printk("[ipc] ERROR: Null buffer pointer in recv_message\n");
         return -1;
@@ -201,10 +198,13 @@ int recv_message(int sender_pid, void *buffer, int max_size) {
     struct msg_queue *queue = &message_queues[current_pid];
     
     if (!queue->head) {
-        // No messages available - in a real system, we'd block here
-        printk("[ipc] No messages available for PID %d (queue empty)\n", current_pid);
+        // No messages available - silently return -1 (no logging for empty queues)
         return -1;
     }
+    
+    // Only log when we actually have a message to process
+    printk("[ipc] Message received: PID %d from PID %d (max %d bytes)\n", 
+           current_pid, sender_pid, max_size);
     
     struct message *msg = queue->head;
     queue->head = msg->next;
@@ -258,12 +258,10 @@ int recv_message(int sender_pid, void *buffer, int max_size) {
 
 int try_recv_message(int sender_pid, void *buffer, int max_size) {
     // Non-blocking version of recv_message
-    printk("[ipc] Non-blocking receive attempt: PID %d\n", current_task);
     int result = recv_message(sender_pid, buffer, max_size);
     
-    if (result == -1) {
-        printk("[ipc] Non-blocking receive: No messages available for PID %d\n", current_task);
-    }
+    // Only log if there was actually a message (recv_message already logs success cases)
+    // No logging for empty queues to reduce spam
     
     return result;
 }

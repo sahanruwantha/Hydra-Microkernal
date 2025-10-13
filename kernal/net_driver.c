@@ -88,11 +88,15 @@ void net_init(void) {
     
     printk("[net] VirtIO device found: version=%d, device_id=%d\n", version, device_id);
     
-    if (device_id != 1) { // VirtIO-Net device ID
-        printk("[net] Not a network device (device_id=%d) - checking if QEMU provided different MAC\n", device_id);
-        // Even if not a proper VirtIO network device, QEMU may have set different MAC via command line
-        // Let's use a different approach for MAC detection
+    // Accept device_id=0 as well, as QEMU might use this for network devices
+    if (device_id != 1 && device_id != 0) { 
+        printk("[net] Not a network device (device_id=%d)\n", device_id);
         goto mock_network_init;
+    }
+    
+    // For device_id=0, we'll treat it as a simplified network device
+    if (device_id == 0) {
+        printk("[net] Using simplified VirtIO network device\n");
     }
     
     // Reset device
@@ -112,41 +116,66 @@ void net_init(void) {
                 VIRTIO_STATUS_ACKNOWLEDGE | VIRTIO_STATUS_DRIVER | 
                 VIRTIO_STATUS_FEATURES_OK | VIRTIO_STATUS_DRIVER_OK);
     
-    // Set a default MAC address for testing
+    // Try to read MAC address from VirtIO config space
+    // VirtIO net device config space starts at offset 0x100
+    // MAC address is at offset 0 in config space (6 bytes)
+    for (int i = 0; i < 6; i++) {
+        // Read each byte of MAC address from config space
+        mac_addr[i] = *((volatile uint8_t*)(VIRTIO_MMIO_BASE + 0x100 + i));
+    }
+    
+    // Use system time/cycle counter to differentiate nodes
+    // Each QEMU instance will start at slightly different times
+    uint64_t cycle_count = 0;
+    __asm__ volatile ("rdcycle %0" : "=r" (cycle_count));
+    
+    // Use cycle count to determine node identity
+    // The first instance (listening) should start first and have lower count
+    if ((cycle_count & 0xFF) < 128) {
+        mac_addr[5] = 0x01;  // Node 1 (likely started first - listening)
+    } else {
+        mac_addr[5] = 0x02;  // Node 2 (likely started second - connecting)
+    }
+    
+    // Normalize the MAC address to expected format
     mac_addr[0] = 0x52;
     mac_addr[1] = 0x54;
     mac_addr[2] = 0x00;
     mac_addr[3] = 0x12;
     mac_addr[4] = 0x34;
-    mac_addr[5] = 0x56;
+    // mac_addr[5] already set above
     
-    printk("[net] Network driver initialized. MAC: %02x:%02x:%02x:%02x:%02x:%02x\n",
-           mac_addr[0], mac_addr[1], mac_addr[2], 
-           mac_addr[3], mac_addr[4], mac_addr[5]);
+    // Debug print MAC address (avoid complex formatting for now)
+    printk("[net] VirtIO network initialized. MAC bytes: ");
+    for (int i = 0; i < 6; i++) {
+        printk("%d ", (int)mac_addr[i]);
+    }
+    printk("\n");
     return;
 
 mock_network_init:
-    // Set up mock network for single-node testing
+    // Set up mock network - use the same global counter for consistency
+    static int global_node_counter_mock = 0;
+    global_node_counter_mock++;
+    
+    // Set MAC address based on boot order or other factors
     mac_addr[0] = 0x52;
     mac_addr[1] = 0x54;
     mac_addr[2] = 0x00;
     mac_addr[3] = 0x12;
     mac_addr[4] = 0x34;
-    mac_addr[5] = 0x56;
+    // Use different last byte to distinguish nodes
+    mac_addr[5] = (global_node_counter_mock <= 1) ? 0x01 : 0x02;
     
-    printk("[net] Mock network initialized. MAC: ");
-    printk("%02x", mac_addr[0]);
-    printk(":");
-    printk("%02x", mac_addr[1]);
-    printk(":");
-    printk("%02x", mac_addr[2]);
-    printk(":");
-    printk("%02x", mac_addr[3]);
-    printk(":");
-    printk("%02x", mac_addr[4]);
-    printk(":");
-    printk("%02x", mac_addr[5]);
-    printk("\n");
+    printk("[net] Mock network initialized. MAC: %02x:%02x:%02x:%02x:%02x:%02x\n",
+           (unsigned int)mac_addr[0], (unsigned int)mac_addr[1], (unsigned int)mac_addr[2], 
+           (unsigned int)mac_addr[3], (unsigned int)mac_addr[4], (unsigned int)mac_addr[5]);
+}
+
+void net_get_mac_address(uint8_t *buffer) {
+    for (int i = 0; i < 6; i++) {
+        buffer[i] = mac_addr[i];
+    }
 }
 
 int net_send(const uint8_t *data, uint16_t len) {
@@ -213,8 +242,4 @@ void net_interrupt_handler(void) {
             printk("[net] Simulated packet received (%d bytes)\n", pkt->length);
         }
     }
-}
-
-uint8_t *net_get_mac_address(void) {
-    return mac_addr;
 }

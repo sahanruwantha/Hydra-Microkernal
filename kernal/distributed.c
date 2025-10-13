@@ -422,3 +422,39 @@ void print_distributed_status(void) {
     }
     printk("================================\n\n");
 }
+
+// Helper functions for distributed raytracer
+uint32_t get_local_node_id(void) {
+    return dist_system.local_node_id;
+}
+
+int get_distributed_node_count(void) {
+    return dist_system.num_nodes;
+}
+
+uint32_t get_best_compute_node_id(void) {
+    kernel_node_t *best_node = NULL;
+    uint32_t lowest_load = 100;
+    
+    // Find the compute node with the lowest load
+    for (int i = 0; i < dist_system.num_nodes; i++) {
+        kernel_node_t *node = &dist_system.nodes[i];
+        
+        if (node->type == NODE_TYPE_COMPUTE && 
+            node->status == NODE_STATUS_ALIVE &&
+            node->load < lowest_load &&
+            node->node_id != dist_system.local_node_id) {
+            
+            best_node = node;
+            lowest_load = node->load;
+        }
+    }
+    
+    return best_node ? best_node->node_id : 0;
+}
+
+uint32_t get_current_process_id(void) {
+    // Return current task ID (simplified)
+    extern int current_task;
+    return (uint32_t)current_task;
+}
