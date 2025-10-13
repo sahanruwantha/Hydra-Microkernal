@@ -26,5 +26,6 @@ struct net_packet *net_receive(void);
 void net_free_packet(struct net_packet *pkt);
 struct net_stats *net_get_stats(void);
 void net_interrupt_handler(void);
+uint8_t *net_get_mac_address(void);  // Get MAC address for node ID detection
 
 #endif

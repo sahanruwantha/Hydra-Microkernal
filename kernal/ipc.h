@@ -1,7 +1,7 @@
 #ifndef IPC_H
 #define IPC_H
 
-#define MAX_MESSAGE_SIZE 256
+#define MAX_MESSAGE_SIZE 512  // Increased from 256 to handle larger messages
 #define MAX_MESSAGES 64  // Increased from 16 to handle more concurrent messages
 
 // Message structure

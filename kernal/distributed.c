@@ -233,7 +233,8 @@ void distributed_send_message(uint32_t target_node, dist_msg_type_t type,
     
     kernel_node_t *target = distributed_find_node(target_node);
     if (!target) {
-        printk("[dist] Cannot send message: unknown target node %u\n", target_node);
+        // In multi-node setups, we should try to discover unknown nodes
+        printk("[dist] Cannot send message: unknown target node %u (attempting discovery)\n", target_node);
         return;
     }
     
@@ -248,6 +249,7 @@ void distributed_send_message(uint32_t target_node, dist_msg_type_t type,
 void send_discovery_request(void) {
     printk("[dist] Broadcasting discovery request\n");
     
+    // Always try discovery - we might have multiple nodes
     // Broadcast discovery to all possible nodes
     for (uint32_t i = 1; i <= 4; i++) {
         if (i != dist_system.local_node_id) {

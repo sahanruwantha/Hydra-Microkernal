@@ -8,6 +8,7 @@
 #include "syscall.h"
 #include "distributed.h"
 #include "process_migration.h"
+#include <stddef.h>
 
 void kmain(void) {
     uart_init();
@@ -37,22 +38,41 @@ void kmain(void) {
     uint32_t node_id = 1; // Default node ID
     node_type_t node_type = NODE_TYPE_COMPUTE; // Default node type
     
-    // In a real implementation, we could detect node ID from:
-    // - MAC address (different for each QEMU instance)
-    // - NVRAM settings
-    // - Command line arguments
-    // For now, we'll use a simple detection scheme
+    // Try to detect node ID by examining memory content at boot
+    // Different QEMU instances will have different random memory content
+    volatile uint32_t *random_mem = (volatile uint32_t*)0x80001000; // Some early memory location
+    uint32_t mem_val = *random_mem;
     
-    // Try to detect if this is node 1 or 2 based on some system characteristic
-    // This is a simplified approach for the demo
+    // Use memory content to determine node ID
+    // This is a heuristic that should give different results for different QEMU instances
+    if ((mem_val & 0xFF) < 128) {
+        node_id = 1;
+        node_type = NODE_TYPE_COMPUTE;
+    } else {
+        node_id = 2;
+        node_type = NODE_TYPE_GRAPHICS;
+    }
+    
+    printk("[main] Detected node ID ");
+    printk("%u", node_id);
+    printk(" (memory-based detection: mem=");
+    printk("%x", mem_val);
+    printk(")\n");
     
     char node_name[32];
-    // Simple string copy for node name
-    const char *name_template = "hydra-node-1";
+    // Generate node name based on detected node ID
+    const char *name_prefix = "hydra-node-";
     int i = 0;
-    while (name_template[i] && i < 31) {
-        node_name[i] = name_template[i];
+    
+    // Copy prefix
+    while (name_prefix[i] && i < 30) {
+        node_name[i] = name_prefix[i];
         i++;
+    }
+    
+    // Add node ID digit
+    if (i < 31) {
+        node_name[i++] = '0' + (char)(node_id % 10);
     }
     node_name[i] = '\0';
     

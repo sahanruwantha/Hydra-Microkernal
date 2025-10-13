@@ -32,6 +32,19 @@ void printk(const char *fmt, ...) {
         }
         p++; // skip '%'
 
+        // Handle precision specifier for strings (%.*s)
+        if (*p == '.' && *(p+1) == '*' && *(p+2) == 's') {
+            int width = va_arg(args, int);
+            char *str = va_arg(args, char *);
+            
+            // Print up to 'width' characters from the string
+            for (int i = 0; i < width && str && str[i]; i++) {
+                uart_putc(str[i]);
+            }
+            p += 2; // skip ".*s" (we already skipped %)
+            continue;
+        }
+
         switch (*p) {
         case 'c':
             uart_putc((char)va_arg(args, int));
@@ -42,6 +55,9 @@ void printk(const char *fmt, ...) {
         case 'd':
         case 'i':
             print_num(va_arg(args, int), 10);
+            break;
+        case 'u':
+            print_num(va_arg(args, unsigned int), 10);
             break;
         case 'x':
             print_num(va_arg(args, unsigned int), 16);
