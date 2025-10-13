@@ -244,9 +244,8 @@ void image_sender_demo(void) {
 // Combined demo function that can be called from kernel
 void phase6_demo(void) {
     printf("\n=== PHASE 6 - APPLICATIONS ===\n");
-    printf("Running both raytracer and image network demos\n\n");
+    printf("Running raytracer and image network applications\n\n");
     
-    // Run raytracer demo first
     raytracer_demo();
     
     // Run image network demo

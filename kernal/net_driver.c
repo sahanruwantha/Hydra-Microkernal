@@ -35,6 +35,11 @@ static struct net_stats stats = {0};
 // MAC address (will be set by device)
 static uint8_t mac_addr[6];
 
+// Packet tracking for enhanced logging
+static uint32_t packet_send_counter = 0;
+static uint32_t packet_recv_counter = 0;
+static uint32_t packet_interrupt_counter = 0;
+
 static inline void write_reg32(uint64_t addr, uint32_t value) {
     *(volatile uint32_t *)(VIRTIO_MMIO_BASE + addr) = value;
 }
@@ -181,28 +186,123 @@ void net_get_mac_address(uint8_t *buffer) {
 int net_send(const uint8_t *data, uint16_t len) {
     if (len > 1514) {
         stats.tx_errors++;
+        printk("[net] PACKET_TX_ERROR: Packet #%u too large (%d bytes > 1514)\n", 
+               ++packet_send_counter, len);
         return -1;
     }
     
+    uint32_t current_packet_id = ++packet_send_counter;
+    
+    // Enhanced packet execution logging
+    printk("[net] PACKET_TX_START: Executing TX packet #%u (%d bytes)\n", 
+           current_packet_id, len);
+    
+    // Log packet header info if available
+    if (len >= 14) {  // Minimum ethernet header
+        printk("[net] PACKET_TX_HEADERS: Packet #%u - Dst MAC: %02x:%02x:%02x:%02x:%02x:%02x, "
+               "Src MAC: %02x:%02x:%02x:%02x:%02x:%02x, EtherType: 0x%02x%02x\n",
+               current_packet_id,
+               data[0], data[1], data[2], data[3], data[4], data[5],
+               data[6], data[7], data[8], data[9], data[10], data[11],
+               data[12], data[13]);
+    }
+    
     // For now, just simulate sending (no actual VirtIO queue implementation)
-    printk("[net] Sending packet: %d bytes\n", len);
+    printk("[net] PACKET_TX_PROCESSING: Packet #%u being transmitted via VirtIO\n", 
+           current_packet_id);
     
     stats.tx_packets++;
     stats.tx_bytes += len;
+    
+    printk("[net] PACKET_TX_COMPLETE: Packet #%u successfully transmitted (%d bytes total)\n", 
+           current_packet_id, len);
     
     return 0;
 }
 
 struct net_packet *net_receive(void) {
+    // Simulate periodic packet generation without interrupts
+    static int poll_counter = 0;
+    poll_counter++;
+    
+    // Generate a packet every 50 calls (simulating network activity)
+    if (rx_queue_head == NULL && (poll_counter % 50) == 0) {
+        // Generate a simulated packet
+        struct net_packet *pkt = alloc_packet();
+        if (pkt != NULL) {
+            uint32_t simulated_packet_id = poll_counter / 50;
+            
+            printk("[net] PACKET_SIMULATE_POLLING: Creating packet #%u via polling (call %d)\n", 
+                   simulated_packet_id, poll_counter);
+            
+            // Create a dummy packet with identifiable pattern
+            pkt->length = 64;
+            
+            // Create Ethernet header-like structure
+            // Destination MAC (broadcast)
+            pkt->data[0] = 0xFF; pkt->data[1] = 0xFF; pkt->data[2] = 0xFF;
+            pkt->data[3] = 0xFF; pkt->data[4] = 0xFF; pkt->data[5] = 0xFF;
+            
+            // Source MAC (our MAC)
+            for (int i = 0; i < 6; i++) {
+                pkt->data[6 + i] = mac_addr[i];
+            }
+            
+            // EtherType (fake IP = 0x0800)
+            pkt->data[12] = 0x08; pkt->data[13] = 0x00;
+            
+            // Fill rest with pattern including packet ID
+            for (int i = 14; i < 64; i++) {
+                pkt->data[i] = (simulated_packet_id + i) & 0xFF;
+            }
+            
+            // Add to RX queue
+            pkt->next = NULL;
+            rx_queue_head = rx_queue_tail = pkt;
+            
+            stats.rx_packets++;
+            stats.rx_bytes += pkt->length;
+            
+            printk("[net] PACKET_SIMULATE_POLLING_COMPLETE: Simulated packet #%u ready (%d bytes)\n", 
+                   simulated_packet_id, pkt->length);
+        }
+    }
+    
     if (rx_queue_head == NULL) {
         return NULL;
     }
     
+    uint32_t current_packet_id = ++packet_recv_counter;
     struct net_packet *pkt = rx_queue_head;
+    
+    printk("[net] PACKET_RX_START: Executing RX packet #%u from queue (%d bytes)\n", 
+           current_packet_id, pkt->length);
+    
+    // Log packet content analysis
+    if (pkt->length >= 14) {  // Minimum ethernet header
+        printk("[net] PACKET_RX_HEADERS: Packet #%u - Dst MAC: %02x:%02x:%02x:%02x:%02x:%02x, "
+               "Src MAC: %02x:%02x:%02x:%02x:%02x:%02x, EtherType: 0x%02x%02x\n",
+               current_packet_id,
+               pkt->data[0], pkt->data[1], pkt->data[2], pkt->data[3], pkt->data[4], pkt->data[5],
+               pkt->data[6], pkt->data[7], pkt->data[8], pkt->data[9], pkt->data[10], pkt->data[11],
+               pkt->data[12], pkt->data[13]);
+    }
+    
+    // Log first few bytes for debugging
+    printk("[net] PACKET_RX_DATA: Packet #%u first 16 bytes: ", current_packet_id);
+    int bytes_to_show = (pkt->length < 16) ? pkt->length : 16;
+    for (int i = 0; i < bytes_to_show; i++) {
+        printk("%02x ", pkt->data[i]);
+    }
+    printk("\n");
+    
     rx_queue_head = rx_queue_head->next;
     if (rx_queue_head == NULL) {
         rx_queue_tail = NULL;
     }
+    
+    printk("[net] PACKET_RX_DEQUEUE: Packet #%u removed from queue, %s packets remaining\n", 
+           current_packet_id, rx_queue_head ? "more" : "no");
     
     return pkt;
 }
@@ -217,29 +317,65 @@ void net_interrupt_handler(void) {
     static int interrupt_count = 0;
     interrupt_count++;
     
-    if (interrupt_count % 100 == 0) {
+    packet_interrupt_counter++;
+    
+    printk("[net] PACKET_INTERRUPT: Interrupt #%u triggered (iteration %d)\n", 
+           packet_interrupt_counter, interrupt_count);
+    
+    if (interrupt_count % 10 == 0) {
         // Simulate receiving a packet
         struct net_packet *pkt = alloc_packet();
         if (pkt != NULL) {
-            // Create a dummy packet
+            uint32_t simulated_packet_id = packet_interrupt_counter;
+            
+            printk("[net] PACKET_SIMULATE_START: Creating simulated packet #%u\n", 
+                   simulated_packet_id);
+            
+            // Create a dummy packet with identifiable pattern
             pkt->length = 64;
-            for (int i = 0; i < 64; i++) {
-                pkt->data[i] = i & 0xFF;
+            
+            // Create Ethernet header-like structure
+            // Destination MAC (broadcast)
+            pkt->data[0] = 0xFF; pkt->data[1] = 0xFF; pkt->data[2] = 0xFF;
+            pkt->data[3] = 0xFF; pkt->data[4] = 0xFF; pkt->data[5] = 0xFF;
+            
+            // Source MAC (our MAC)
+            for (int i = 0; i < 6; i++) {
+                pkt->data[6 + i] = mac_addr[i];
             }
+            
+            // EtherType (fake IP = 0x0800)
+            pkt->data[12] = 0x08; pkt->data[13] = 0x00;
+            
+            // Fill rest with pattern including packet ID
+            for (int i = 14; i < 64; i++) {
+                pkt->data[i] = (simulated_packet_id + i) & 0xFF;
+            }
+            
+            printk("[net] PACKET_SIMULATE_CONTENT: Packet #%u filled with test pattern\n", 
+                   simulated_packet_id);
             
             // Add to RX queue
             pkt->next = NULL;
             if (rx_queue_tail == NULL) {
                 rx_queue_head = rx_queue_tail = pkt;
+                printk("[net] PACKET_SIMULATE_QUEUE: Packet #%u added to empty queue\n", 
+                       simulated_packet_id);
             } else {
                 rx_queue_tail->next = pkt;
                 rx_queue_tail = pkt;
+                printk("[net] PACKET_SIMULATE_QUEUE: Packet #%u appended to queue\n", 
+                       simulated_packet_id);
             }
             
             stats.rx_packets++;
             stats.rx_bytes += pkt->length;
             
-            printk("[net] Simulated packet received (%d bytes)\n", pkt->length);
+            printk("[net] PACKET_SIMULATE_COMPLETE: Simulated packet #%u ready for processing (%d bytes)\n", 
+                   simulated_packet_id, pkt->length);
+        } else {
+            printk("[net] PACKET_SIMULATE_ERROR: Failed to allocate packet for interrupt #%u\n", 
+                   packet_interrupt_counter);
         }
     }
 }

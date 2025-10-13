@@ -37,9 +37,19 @@ void kmain(void) {
     
     sched_init();
     KLOG_INFO("Scheduler initialized");
+    printk("[main] Scheduler init completed, about to init timer...\n");
+    
+    // timer_init(); // Temporarily disabled - causes system crash
+    KLOG_INFO("Timer initialization skipped for debugging");
+    printk("[main] Timer init skipped, about to init network...\n");
     
     net_init();
     KLOG_INFO("Network driver initialized");
+    printk("[main] Network init completed\n");
+    
+    // Note: Interrupts disabled due to trap vector instability
+    // Using polling-based approach instead
+    KLOG_INFO("Network polling mode enabled");
     
     // Initialize distributed system - node ID based on MAC address or detection
     uint32_t node_id = 1; // Default node ID
@@ -89,49 +99,67 @@ void kmain(void) {
     }
     node_name[i] = '\0';
     
+    printk("[main] About to initialize distributed system...\n");
     distributed_init(node_id, node_type, node_name);
+    printk("[main] Distributed system initialized successfully\n");
     
     // Create server processes
     extern void bullet_server_main(void);
     extern void net_server_main(void);
     
-    create_task(bullet_server_main);
-    create_task(net_server_main);
+    printk("[main] Creating bullet server task...\n");
+    int bullet_task = create_task(bullet_server_main);
+    printk("[main] Creating network server task...\n");
+    int net_task = create_task(net_server_main);
+    
+    if (bullet_task == -1 || net_task == -1) {
+        printk("[main] ERROR: Failed to create server tasks!\n");
+        printk("[main] Available tasks: %d/%d\n", MAX_TASKS - num_tasks, MAX_TASKS);
+    } else {
+        printk("[main] Server tasks created successfully\n");
+    }
     
     printk("[main] Ready. Commands: 'd'=status, 'm'=migrate, 'f'=find nodes\n");
     
     static bool raytracer_started = false;
     static int startup_counter = 0;
     
-    // Main kernel loop
+    printk("[main] Entering main loop...\n");
+    
     while (1) {
         // Process distributed system updates
         distributed_tick();
         
         // Auto-start distributed raytracer after initial system stabilization
         if (!raytracer_started && ++startup_counter > 1000) {
-            printk("[main] Auto-starting distributed raytracer demonstration...\n");
+            printk("[main] Auto-starting distributed raytracer...\n");
             extern void distributed_raytracer_main(void);
-            create_task(distributed_raytracer_main);
-            raytracer_started = true;
+            int raytracer_task = create_task(distributed_raytracer_main);
             
-            // Send discovery requests to find other nodes
-            send_discovery_request();
-            printk("[main] Distributed raytracer started - looking for compute nodes...\n");
+            if (raytracer_task != -1) {
+                raytracer_started = true;
+                // Send discovery requests to find other nodes
+                send_discovery_request();
+                printk("[main] Distributed raytracer started - looking for compute nodes...\n");
+            } else {
+                printk("[main] ERROR: Failed to create raytracer task! Available: %d/%d\n", 
+                       MAX_TASKS - num_tasks, MAX_TASKS);
+                raytracer_started = true; // Prevent retry
+            }
         }
         
         // Check if raytracer completed and show status
         if (raytracer_started && startup_counter % 5000 == 0) {
             extern bool is_raytracer_completed(void);
             if (is_raytracer_completed()) {
-                printk("[main] Raytracer demonstration completed successfully!\n");
+                printk("[main] Raytracer processing completed successfully!\n");
                 printk("[main] Use 'd' to check status, 'm' to test migration, 'f' to find nodes\n");
             }
         }
         
         char c = uart_getc();
-        if (c != 0) {  // Only process if we actually got a character
-            uart_putc(c); // echo test
+        if (c != 0) {
+            uart_putc(c);
             
             // Handle distributed commands
             if (c == 'd') {
@@ -160,10 +188,8 @@ void kmain(void) {
             }
         }
         
-        // Small delay to prevent busy waiting
-        for (volatile int i = 0; i < 1000; i++);
+        for (volatile int i = 0; i < 10000; i++);
         
-        // Yield to allow task switching
         task_yield();
     }
 }

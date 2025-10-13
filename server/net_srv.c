@@ -2,11 +2,11 @@
 #include "../kernal/printk.h"
 #include <stddef.h>
 #include <stdint.h>
+#include <stdbool.h>
 
 // Network server - provides TCP/UDP socket services to applications
-// This is a simplified implementation demonstrating the concept
 
-static int NET_SERVER_PID = 4; // Network server gets PID 4
+static int NET_SERVER_PID = 4;
 #define MAX_SOCKETS 32
 #define MAX_CONNECTIONS 16
 
@@ -205,21 +205,62 @@ void socket_add_rx_data(struct socket *sock, const void *data, int len) {
 
 // Process network packets and route to appropriate sockets
 void process_network_packets(void) {
+    static uint32_t netserv_packet_counter = 0;
     uint8_t packet_buffer[1500];
     int packet_len = syscall_net_recv(packet_buffer, sizeof(packet_buffer));
     
     if (packet_len > 0) {
-        printk("[netserv] Received network packet: %d bytes\n", packet_len);
+        uint32_t current_packet_id = ++netserv_packet_counter;
+        
+        printk("[netserv] PACKET_NETSERV_START: Processing packet #%u (%d bytes) in network server\n", 
+               current_packet_id, packet_len);
+        
+        // Analyze packet headers if available
+        if (packet_len >= 14) {  // Ethernet header
+            printk("[netserv] PACKET_NETSERV_HEADERS: Packet #%u - Ethernet header detected\n", 
+                   current_packet_id);
+            printk("[netserv] PACKET_NETSERV_ETH: Packet #%u - Dst: %02x:%02x:%02x:%02x:%02x:%02x, "
+                   "Src: %02x:%02x:%02x:%02x:%02x:%02x, Type: 0x%02x%02x\n",
+                   current_packet_id,
+                   packet_buffer[0], packet_buffer[1], packet_buffer[2], 
+                   packet_buffer[3], packet_buffer[4], packet_buffer[5],
+                   packet_buffer[6], packet_buffer[7], packet_buffer[8], 
+                   packet_buffer[9], packet_buffer[10], packet_buffer[11],
+                   packet_buffer[12], packet_buffer[13]);
+        }
+        
+        // Check for IP packet
+        if (packet_len >= 34 && packet_buffer[12] == 0x08 && packet_buffer[13] == 0x00) {
+            printk("[netserv] PACKET_NETSERV_IP: Packet #%u - IP packet detected (version %d)\n", 
+                   current_packet_id, (packet_buffer[14] >> 4) & 0x0F);
+        }
+        
+        printk("[netserv] PACKET_NETSERV_ROUTING: Packet #%u - Looking for connected sockets\n", 
+               current_packet_id);
         
         // Simple packet routing - in a real implementation, this would
         // parse IP/TCP/UDP headers and route to the correct socket
         // For now, just add to the first connected socket
+        bool routed = false;
         for (int i = 0; i < MAX_SOCKETS; i++) {
             if (netserv.sockets[i].in_use && 
                 netserv.sockets[i].state == SOCK_CONNECTED) {
+                
+                printk("[netserv] PACKET_NETSERV_ROUTE: Packet #%u routed to socket %d (PID %d)\n", 
+                       current_packet_id, i, netserv.sockets[i].owner_pid);
+                
                 socket_add_rx_data(&netserv.sockets[i], packet_buffer, packet_len);
+                routed = true;
                 break;
             }
+        }
+        
+        if (!routed) {
+            printk("[netserv] PACKET_NETSERV_DROP: Packet #%u dropped - no connected sockets available\n", 
+                   current_packet_id);
+        } else {
+            printk("[netserv] PACKET_NETSERV_COMPLETE: Packet #%u successfully processed and routed\n", 
+                   current_packet_id);
         }
     }
 }
@@ -348,14 +389,13 @@ int net_socket(socket_type_t type) {
     cmd_data[1] = 1; // socket command
     cmd_data[2] = type;
     
-    // Send with retry logic
     int retries = 3;
     while (retries > 0) {
         if (syscall_send_msg(NET_SERVER_PID, cmd_data, sizeof(cmd_data)) >= 0) {
             break;
         }
         retries--;
-        for (volatile int i = 0; i < 1000; i++); // delay
+        for (volatile int i = 0; i < 1000; i++);
     }
     
     if (retries == 0) {
@@ -383,7 +423,7 @@ int net_bind(int sock_id, uint32_t ip, uint16_t port) {
             break;
         }
         retries--;
-        for (volatile int i = 0; i < 1000; i++); // delay
+        for (volatile int i = 0; i < 1000; i++);
     }
     
     if (retries == 0) {
@@ -418,7 +458,7 @@ int net_socket_send(int sock_id, const void *data, int len) {
             break;
         }
         retries--;
-        for (volatile int i = 0; i < 1000; i++); // delay
+        for (volatile int i = 0; i < 1000; i++);
     }
     
     if (retries == 0) {

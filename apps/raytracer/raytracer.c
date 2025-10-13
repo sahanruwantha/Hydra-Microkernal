@@ -206,7 +206,7 @@ void convert_to_ppm(uint8_t *image_buffer, char *ppm_buffer, int *ppm_size) {
 }
 
 void raytracer_demo(void) {
-    printf("\n*** Phase 6 - Raytracer Demo ***\n");
+    printf("\n*** Raytracer Application ***\n");
     
     raytracer_init();
     

@@ -24,5 +24,6 @@ void net_server_main(void);
 // Server management
 void start_servers(void);
 void server_demo(void);
+void client_main(void);
 
 #endif

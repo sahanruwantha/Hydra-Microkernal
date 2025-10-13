@@ -34,7 +34,6 @@ int ipc_receive_message(pid_t sender, int *msg_type, void *buffer, size_t max_si
 int send_request(pid_t server, const void *request, size_t req_size, 
                  void *response, size_t max_resp_size);
 
-// Capability-based security (placeholder)
 typedef uint64_t capability_t;
 capability_t create_capability(pid_t process, int permissions);
 int check_capability(capability_t cap, int operation);

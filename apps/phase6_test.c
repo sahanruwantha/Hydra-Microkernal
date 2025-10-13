@@ -21,7 +21,6 @@ void test_raytracer_standalone(void) {
     setup_default_scene();
     printf("Scene initialized with %d spheres\n", num_spheres);
     
-    // Test small render (reduced size for demonstration)
     const int test_width = 8;
     const int test_height = 6;
     uint8_t *test_buffer = (uint8_t*)malloc(test_width * test_height * 3);

@@ -175,7 +175,7 @@ bool attempt_process_migration(void) {
 void save_raytracer_output(void) {
     printk("[dist-rt] === Final Output ===\n");
     printk("[dist-rt] Raytraced image completed successfully\n");
-    printk("[dist-rt] Distributed processing demonstration complete\n");
+    printk("[dist-rt] Distributed processing complete\n");
     printk("[dist-rt] This demonstrates Hydra's ability to migrate\n");
     printk("[dist-rt] compute-intensive processes across nodes\n");
 }

@@ -300,7 +300,6 @@ bool migrate_process_to_node(uint32_t process_id, uint32_t target_node) {
     printk("[dist] Starting migration of process %u to node %u\n", 
            process_id, target_node);
     
-    // Find available migration slot
     migrated_process_t *migration = NULL;
     for (int i = 0; i < MAX_MIGRATED_PROCESSES; i++) {
         if (dist_system.migrations[i].state == MIGRATION_IDLE) {

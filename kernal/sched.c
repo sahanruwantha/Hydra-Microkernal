@@ -18,7 +18,6 @@ int current_task = 0;
 int num_tasks = 0;
 static uint64_t tick_counter = 0;
 
-// Dummy task functions for testing
 void idle_task1(void) {
     static int count = 0;
     while (1) {
@@ -26,7 +25,7 @@ void idle_task1(void) {
         if (count % 1000 == 0) {
             printk("[Task 1] Running (count: %d)...\n", count);
         }
-        for (volatile int i = 0; i < 100000; i++); // Simple delay
+        for (volatile int i = 0; i < 100000; i++);
         task_yield();
     }
 }
@@ -38,7 +37,7 @@ void idle_task2(void) {
         if (count % 1000 == 0) {
             printk("[Task 2] Running (count: %d)...\n", count);
         }
-        for (volatile int i = 0; i < 100000; i++); // Simple delay
+        for (volatile int i = 0; i < 100000; i++);
         task_yield();
     }
 }
@@ -50,7 +49,7 @@ void idle_task3(void) {
         if (count % 1000 == 0) {
             printk("[Task 3] Running (count: %d)...\n", count);
         }
-        for (volatile int i = 0; i < 100000; i++); // Simple delay
+        for (volatile int i = 0; i < 100000; i++);
         task_yield();
     }
 }
@@ -65,17 +64,6 @@ void sched_init(void) {
     }
     
     printk("[sched] Task table initialized\n");
-    
-    // Trap vector setup causes system instability - keep disabled for now
-    // TODO: Debug trap vector issue in future phase
-    // set_trap_vector();
-    // printk("[sched] Trap vector set\n");
-    printk("[sched] Trap vector setup disabled (causes instability)\n");
-    
-    // Create some test tasks
-    create_task(idle_task1);
-    create_task(idle_task2);
-    create_task(idle_task3);
     
     printk("[sched] Created %d tasks\n", num_tasks);
     printk("[sched] Scheduler initialized.\n");
@@ -117,15 +105,25 @@ int create_task(void (*entry)(void)) {
 void schedule(void) {
     if (num_tasks <= 1) return; // Nothing to schedule
     
+    // Validate current_task index
+    if (current_task < 0 || current_task >= num_tasks) {
+        printk("[sched] ERROR: Invalid current_task %d, resetting to 0\n", current_task);
+        current_task = 0;
+        return;
+    }
+    
     struct task *old_task = &tasks[current_task];
     
     // Find next ready task (round-robin)
     int next_task = (current_task + 1) % num_tasks;
+    int search_count = 0;
     while (next_task != current_task && tasks[next_task].state != TASK_READY) {
         next_task = (next_task + 1) % num_tasks;
+        search_count++;
+        if (search_count >= num_tasks) break; // Prevent infinite loop
     }
     
-    if (next_task == current_task) return; // No other ready tasks
+    if (next_task == current_task || search_count >= num_tasks) return; // No other ready tasks
     
     struct task *new_task = &tasks[next_task];
     
@@ -149,8 +147,14 @@ void schedule(void) {
 }
 
 void task_yield(void) {
-    // Only schedule if we have multiple tasks and they're properly initialized
-    if (num_tasks > 1) {
+    // Enable basic task switching now that boot loop is fixed
+    if (num_tasks > 1 && current_task >= 0 && current_task < num_tasks) {
+        // Add debug output only occasionally to avoid spam
+        static int yield_count = 0;
+        yield_count++;
+        if (yield_count % 50 == 0) {
+            printk("[sched] task_yield() called (call #%d)\n", yield_count);
+        }
         schedule();
     }
 }
@@ -173,7 +177,6 @@ void sched_tick(void) {
 }
 
 int create_migrated_task(void) {
-    // Create a placeholder task for migrated processes
     if (num_tasks >= MAX_TASKS) {
         printk("[sched] Cannot create migrated task: task table full\n");
         return 0;

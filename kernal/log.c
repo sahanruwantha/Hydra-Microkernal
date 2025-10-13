@@ -152,7 +152,6 @@ int log_open_file(const char *filename, log_level_t min_level) {
     char full_path[128] = "logs/";
     safe_strcat(full_path, filename, sizeof(full_path));
     
-    // Find next available slot
     int log_id = -1;
     for (int i = 0; i < MAX_LOG_FILES; i++) {
         if (!g_log_state.files[i].is_open) {

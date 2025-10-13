@@ -22,8 +22,8 @@ typedef unsigned int uint32_t;
 typedef unsigned long uint64_t;
 #endif
 
-#define MAX_TASKS 8
-#define TASK_STACK_SIZE 4096
+#define MAX_TASKS 16
+#define TASK_STACK_SIZE 8192
 
 // Task states
 typedef enum {

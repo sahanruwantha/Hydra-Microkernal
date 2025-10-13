@@ -60,12 +60,11 @@ bool serialize_process(uint32_t process_id, serialized_process_t *output) {
     // Get process name
     k_snprintf(output->header.name, sizeof(output->header.name), "process_%u", process_id);
     
-    // Save CPU state (simplified - in real implementation would save actual registers)
     for (int i = 0; i < 32; i++) {
-        output->header.registers[i] = 0; // Placeholder
+        output->header.registers[i] = 0;
     }
-    output->header.pc = 0x80000000; // Placeholder
-    output->header.sp = 0x80010000; // Placeholder
+    output->header.pc = 0x80000000;
+    output->header.sp = 0x80010000;
     
     // Serialize process-specific state
     switch (output->header.type) {

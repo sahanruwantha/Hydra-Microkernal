@@ -180,7 +180,6 @@ int bullet_migrate_process(int target_node, void *process_data, int size) {
             break;
         }
         retries--;
-        // Simple delay before retry
         for (volatile int i = 0; i < 1000; i++);
     }
     
@@ -209,7 +208,6 @@ int bullet_check_migration_status(int req_id) {
             break;
         }
         retries--;
-        // Simple delay before retry
         for (volatile int i = 0; i < 1000; i++);
     }
     

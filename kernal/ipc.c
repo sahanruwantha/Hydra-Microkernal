@@ -73,7 +73,6 @@ static struct message *alloc_message(void) {
     free_messages = free_messages->next;
     msg->next = 0;
     
-    // Log allocation details for debugging
     int remaining = count_free_messages();
     if (remaining < 10) {
         printk("[ipc] Low memory warning: Only %d message slots remaining\n", remaining);
@@ -198,7 +197,6 @@ int recv_message(int sender_pid, void *buffer, int max_size) {
     struct msg_queue *queue = &message_queues[current_pid];
     
     if (!queue->head) {
-        // No messages available - silently return -1 (no logging for empty queues)
         return -1;
     }
     
@@ -352,7 +350,6 @@ void ipc_log_queue_status(int pid) {
     printk("\n");
 }
 
-// Log current memory usage in detail
 void ipc_log_memory_usage(void) {
     int free_count = count_free_messages();
     int used_count = MAX_MESSAGES - free_count;

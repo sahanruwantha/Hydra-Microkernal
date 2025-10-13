@@ -36,10 +36,8 @@ void timer_init(void) {
     // Enable machine timer interrupt in mie
     unsigned long mie;
     asm volatile("csrr %0, mie" : "=r"(mie));
-    mie |= (1UL << 7); // Set MTIE bit (bit 7)
+    mie |= (1UL << 7);
     asm volatile("csrw mie, %0" : : "r"(mie));
-    
-    // Don't enable global interrupts yet - wait until system is fully initialized
     
     printk("[timer] Timer initialized with %d tick interval\n", TIMER_INTERVAL);
 }
@@ -56,13 +54,10 @@ void enable_interrupts(void) {
     printk("[timer] Interrupts enabled\n");
 }
 
-// Main trap handler called from assembly
 void trap_handler(unsigned long cause, unsigned long epc, unsigned long tval) {
-    // Add debug output to see what traps are occurring
     static int trap_count = 0;
     static int in_trap = 0;
     
-    // Prevent recursive traps
     if (in_trap) {
         printk("[trap] ERROR: Recursive trap detected!\n");
         asm volatile("csrci mstatus, 0x8"); // Disable interrupts
@@ -84,6 +79,8 @@ void trap_handler(unsigned long cause, unsigned long epc, unsigned long tval) {
         if (timer_ticks % 10 == 0) {
             printk("[trap] Timer tick %lu\n", timer_ticks);
         }
+        
+        // Network activity now handled by polling in net_receive()
         
         // Call scheduler tick
         sched_tick();
