@@ -8,6 +8,7 @@
 #include "syscall.h"
 #include "distributed.h"
 #include "process_migration.h"
+#include "log.h"
 #include <stddef.h>
 
 void kmain(void) {
@@ -18,9 +19,27 @@ void kmain(void) {
     printk("==============================\n\n");
 
     mm_init();
+    
+    // Initialize logging system early
+    log_init();
+    
+    // Open system log files
+    int kernel_log = log_open_file("kernel.log", LOG_INFO);
+    int network_log = log_open_file("network.log", LOG_DEBUG);
+    int ipc_log = log_open_file("ipc.log", LOG_INFO);
+    int migration_log = log_open_file("migration.log", LOG_DEBUG);
+    
+    KLOG_INFO("Hydra Microkernel starting up...");
+    KLOG_INFO("Memory manager initialized");
+    
     ipc_init();
+    KLOG_INFO("IPC system initialized");
+    
     sched_init();
+    KLOG_INFO("Scheduler initialized");
+    
     net_init();
+    KLOG_INFO("Network driver initialized");
     
     // Initialize distributed system - node ID based on MAC address or detection
     uint32_t node_id = 1; // Default node ID
@@ -50,6 +69,8 @@ void kmain(void) {
     }
     
     printk("[main] Node ID: %u\n", node_id);
+    KLOG_INFO("Detected Node ID: %u, Type: %s", node_id, 
+              (node_type == NODE_TYPE_COMPUTE) ? "COMPUTE" : "GRAPHICS");
     
     char node_name[32];
     // Generate node name based on detected node ID

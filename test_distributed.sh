@@ -137,12 +137,26 @@ start_node() {
     local monitor_port=$5
     local ip_addr=$6
     
-    local log_file="node${node_id}.log"
-    local pid_file="node${node_id}.pid"
+    # Ensure logs directory exists
+    mkdir -p logs
+    
+    local log_file="logs/node${node_id}.log"
+    local pid_file="logs/node${node_id}.pid"
     
     print_status "Starting Node $node_id ($node_type) on $ip_addr..."
     
-    # QEMU command with simplified networking for testing
+    # Enhanced QEMU command with socket networking for inter-node communication
+    local socket_path="/tmp/hydra_net_${node_id}.sock"
+    
+    # Create the socket network for node communication
+    if [ "$node_id" = "1" ]; then
+        # Node 1 creates the socket and listens
+        local netdev_config="socket,id=net0,listen=:1234"
+    else
+        # Node 2 connects to Node 1's socket
+        local netdev_config="socket,id=net0,connect=127.0.0.1:1234"
+    fi
+    
     local qemu_cmd="$QEMU_SYSTEM \
         -machine $MACHINE \
         -cpu $CPU_TYPE \
@@ -150,7 +164,7 @@ start_node() {
         -kernel $KERNEL_IMAGE \
         -nographic \
         -no-reboot \
-        -netdev user,id=net0 \
+        -netdev $netdev_config \
         -device virtio-net-device,netdev=net0,mac=52:54:00:12:34:$(printf '%02d' $node_id) \
         -vnc :$(($vnc_port - 5900)) \
         -monitor tcp:127.0.0.1:$monitor_port,server,nowait"
@@ -184,7 +198,7 @@ stop_nodes() {
     print_status "Stopping all nodes..."
     
     for node_id in 1 2; do
-        local pid_file="node${node_id}.pid"
+        local pid_file="logs/node${node_id}.pid"
         if [ -f "$pid_file" ]; then
             local pid=$(cat "$pid_file")
             if kill -0 $pid 2>/dev/null; then
@@ -205,8 +219,8 @@ show_status() {
     print_status "Checking node status..."
     
     for node_id in 1 2; do
-        local pid_file="node${node_id}.pid"
-        local log_file="node${node_id}.log"
+        local pid_file="logs/node${node_id}.pid"
+        local log_file="logs/node${node_id}.log"
         
         if [ -f "$pid_file" ]; then
             local pid=$(cat "$pid_file")
@@ -252,7 +266,7 @@ show_help() {
 
 show_logs() {
     for node_id in 1 2; do
-        local log_file="node${node_id}.log"
+        local log_file="logs/node${node_id}.log"
         if [ -f "$log_file" ]; then
             echo -e "${BLUE}=== Node $node_id Log (last 10 lines) ===${NC}"
             tail -n 10 "$log_file"

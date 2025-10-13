@@ -116,3 +116,10 @@ void trap_handler(unsigned long cause, unsigned long epc, unsigned long tval) {
 unsigned long get_timer_ticks(void) {
     return timer_ticks;
 }
+
+uint64_t get_uptime_ms(void) {
+    // Convert timer ticks to milliseconds
+    // TIMER_INTERVAL is set to give us roughly 10 ticks per second
+    // So each tick is approximately 100ms
+    return (uint64_t)timer_ticks * 100;
+}
