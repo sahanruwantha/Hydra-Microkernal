@@ -103,15 +103,26 @@ run-net: kernel.elf
 		-netdev user,id=net0 \
 		-device virtio-net-device,netdev=net0
 
+# Distributed system test
+run-distributed: kernel.elf
+	@echo "Starting distributed system test..."
+	./test_distributed.sh start
+
+stop-distributed:
+	@echo "Stopping distributed system test..."
+	./test_distributed.sh stop
+
 # Help target
 help:
 	@echo "Available targets:"
-	@echo "  all          - Build kernel.elf (default)"
-	@echo "  clean        - Remove build artifacts"
-	@echo "  run          - Run kernel in QEMU"
-	@echo "  run-debug    - Run kernel in QEMU with GDB server"
-	@echo "  run-net      - Run kernel in QEMU with network"
-	@echo "  debug-files  - Show detected source files"
-	@echo "  help         - Show this help"
+	@echo "  all              - Build kernel.elf (default)"
+	@echo "  clean            - Remove build artifacts"
+	@echo "  run              - Run kernel in QEMU"
+	@echo "  run-debug        - Run kernel in QEMU with GDB server"
+	@echo "  run-net          - Run kernel in QEMU with network"
+	@echo "  run-distributed  - Start distributed system test (2 nodes)"
+	@echo "  stop-distributed - Stop distributed system test"
+	@echo "  debug-files      - Show detected source files"
+	@echo "  help             - Show this help"
 
 .PHONY: all clean run run-debug run-net debug-files help

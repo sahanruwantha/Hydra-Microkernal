@@ -6,11 +6,13 @@
 #include "net_driver.h"
 #include "timer.h"
 #include "syscall.h"
+#include "distributed.h"
+#include "process_migration.h"
 
 void kmain(void) {
     uart_init();
     printk("\n==============================\n");
-    printk(" Amoeba Microkernel (RISC-V)  \n");
+    printk(" Hydra Distributed Microkernel\n");
     printk(" Booting on QEMU virt...      \n");
     printk("==============================\n\n");
 
@@ -30,6 +32,32 @@ void kmain(void) {
     
     printk("[main] Starting network...\n");
     net_init();
+    
+    // Initialize distributed system - node ID based on MAC address or detection
+    uint32_t node_id = 1; // Default node ID
+    node_type_t node_type = NODE_TYPE_COMPUTE; // Default node type
+    
+    // In a real implementation, we could detect node ID from:
+    // - MAC address (different for each QEMU instance)
+    // - NVRAM settings
+    // - Command line arguments
+    // For now, we'll use a simple detection scheme
+    
+    // Try to detect if this is node 1 or 2 based on some system characteristic
+    // This is a simplified approach for the demo
+    
+    char node_name[32];
+    // Simple string copy for node name
+    const char *name_template = "hydra-node-1";
+    int i = 0;
+    while (name_template[i] && i < 31) {
+        node_name[i] = name_template[i];
+        i++;
+    }
+    node_name[i] = '\0';
+    
+    printk("[main] Starting distributed system...\n");
+    distributed_init(node_id, node_type, node_name);
     
     printk("[main] Starting server processes...\n");
     // Create server processes
@@ -60,9 +88,14 @@ void kmain(void) {
     printk("[main] Interrupts disabled until trap vectors are stable\n");
     
     printk("[main] Entering main loop...\n");
+    printk("[main] Commands: 'n'=send, 's'=stats, 'r'=RX, 'b'=bullet test, 't'=net test, 'l'=lib test, '6'=Phase 6 apps\n");
+    printk("[main] Distributed: 'd'=status, 'm'=migrate raytracer, 'h'=heartbeat, 'f'=find nodes\n");
     
     // Main kernel loop
     while (1) {
+        // Process distributed system updates
+        distributed_tick();
+        
         char c = uart_getc();
         if (c != 0) {  // Only process if we actually got a character
             uart_putc(c); // echo test
@@ -105,8 +138,33 @@ void kmain(void) {
                 printk("\n[main] Running Phase 6 applications demo...\n");
                 extern void phase6_demo(void);
                 phase6_demo();
+            } else if (c == 'd') {
+                printk("\n[main] Distributed system status:\n");
+                print_distributed_status();
+            } else if (c == 'm') {
+                printk("\n[main] Attempting to migrate raytracer process...\n");
+                // Find a suitable target node
+                kernel_node_t *target = distributed_find_best_node(NODE_TYPE_GRAPHICS);
+                if (!target) {
+                    target = distributed_find_best_node(NODE_TYPE_COMPUTE);
+                }
+                
+                if (target) {
+                    printk("  Target node: %u (%s)\n", target->node_id, target->name);
+                    bool success = migrate_process_to_node(1, target->node_id); // Migrate process ID 1 (raytracer)
+                    printk("  Migration %s\n", success ? "initiated" : "failed");
+                } else {
+                    printk("  No suitable target node found\n");
+                }
+            } else if (c == 'h') {
+                printk("\n[main] Sending heartbeat to all nodes...\n");
+                send_heartbeat();
+            } else if (c == 'f') {
+                printk("\n[main] Broadcasting node discovery...\n");
+                send_discovery_request();
             } else {
                 printk("\n[main] Commands: 'n'=send, 's'=stats, 'r'=RX, 'b'=bullet test, 't'=net test, 'l'=lib test, '6'=Phase 6 apps\n");
+                printk("[main] Distributed: 'd'=status, 'm'=migrate raytracer, 'h'=heartbeat, 'f'=find nodes\n");
                 printk("[main] Received char: %c, Timer ticks: %lu\n", c, get_timer_ticks());
             }
         }

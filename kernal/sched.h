@@ -1,6 +1,27 @@
 #ifndef SCHED_H
 #define SCHED_H
 
+// Basic type definitions for cross-compilation (only if not already defined)
+#ifndef UINT8_T_DEFINED
+#define UINT8_T_DEFINED
+typedef unsigned char uint8_t;
+#endif
+
+#ifndef UINT16_T_DEFINED
+#define UINT16_T_DEFINED
+typedef unsigned short uint16_t;
+#endif
+
+#ifndef UINT32_T_DEFINED
+#define UINT32_T_DEFINED
+typedef unsigned int uint32_t;
+#endif
+
+#ifndef UINT64_T_DEFINED
+#define UINT64_T_DEFINED
+typedef unsigned long uint64_t;
+#endif
+
 #define MAX_TASKS 8
 #define TASK_STACK_SIZE 4096
 
@@ -52,6 +73,13 @@ void sched_init(void);
 void schedule(void);
 void sched_tick(void);
 int create_task(void (*entry)(void));
+int create_migrated_task(void);
 void task_yield(void);
+void suspend_task(uint32_t task_id);
+void resume_task(uint32_t task_id);
+void terminate_task(uint32_t task_id);
+uint32_t get_active_task_count(void);
+uint32_t get_memory_usage_percent(void);
+uint64_t get_tick_count(void);
 
 #endif

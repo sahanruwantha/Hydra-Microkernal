@@ -2,9 +2,21 @@
 #include "printk.h"
 #include "mm.h"
 
+// Basic type definitions
+typedef unsigned long size_t;
+#define NULL ((void*)0)
+
+// Simple string functions for kernel use
+static void *k_memset(void *s, int c, size_t n) {
+    unsigned char *p = s;
+    while (n--) *p++ = c;
+    return s;
+}
+
 struct task tasks[MAX_TASKS];
 int current_task = 0;
 int num_tasks = 0;
+static uint64_t tick_counter = 0;
 
 // Dummy task functions for testing
 void idle_task1(void) {
@@ -147,6 +159,7 @@ void sched_tick(void) {
     // Called by timer interrupt - be quiet to avoid spam
     static int tick_count = 0;
     tick_count++;
+    tick_counter++;
     
     // Only print every 50 ticks to reduce output
     if (tick_count % 50 == 0) {
@@ -157,4 +170,88 @@ void sched_tick(void) {
     if (num_tasks > 1) {
         schedule();
     }
+}
+
+int create_migrated_task(void) {
+    // Create a placeholder task for migrated processes
+    if (num_tasks >= MAX_TASKS) {
+        printk("[sched] Cannot create migrated task: task table full\n");
+        return 0;
+    }
+    
+    int task_id = num_tasks;
+    struct task *new_task = &tasks[task_id];
+    
+    new_task->pid = task_id + 1; // PIDs start from 1
+    new_task->state = TASK_READY;
+    
+    // Initialize context with dummy values
+    k_memset(&new_task->context, 0, sizeof(new_task->context));
+    new_task->context.sp = (unsigned long)&new_task->stack[TASK_STACK_SIZE - 8];
+    
+    num_tasks++;
+    
+    printk("[sched] Created migrated task %d (PID %d)\n", task_id, new_task->pid);
+    return new_task->pid;
+}
+
+void suspend_task(uint32_t task_id) {
+    if (task_id == 0 || task_id > num_tasks) {
+        printk("[sched] Invalid task ID for suspend: %u\n", task_id);
+        return;
+    }
+    
+    struct task *task = &tasks[task_id - 1]; // PIDs start from 1
+    if (task->state != TASK_UNUSED) {
+        task->state = TASK_BLOCKED;
+        printk("[sched] Suspended task %u\n", task_id);
+    }
+}
+
+void resume_task(uint32_t task_id) {
+    if (task_id == 0 || task_id > num_tasks) {
+        printk("[sched] Invalid task ID for resume: %u\n", task_id);
+        return;
+    }
+    
+    struct task *task = &tasks[task_id - 1]; // PIDs start from 1
+    if (task->state == TASK_BLOCKED) {
+        task->state = TASK_READY;
+        printk("[sched] Resumed task %u\n", task_id);
+    }
+}
+
+void terminate_task(uint32_t task_id) {
+    if (task_id == 0 || task_id > num_tasks) {
+        printk("[sched] Invalid task ID for terminate: %u\n", task_id);
+        return;
+    }
+    
+    struct task *task = &tasks[task_id - 1]; // PIDs start from 1
+    task->state = TASK_UNUSED;
+    printk("[sched] Terminated task %u\n", task_id);
+    
+    // Note: In a full implementation, we'd need to compact the task table
+    // and update num_tasks, but for simplicity we'll just mark as unused
+}
+
+uint32_t get_active_task_count(void) {
+    uint32_t count = 0;
+    for (int i = 0; i < num_tasks; i++) {
+        if (tasks[i].state != TASK_UNUSED) {
+            count++;
+        }
+    }
+    return count;
+}
+
+uint32_t get_memory_usage_percent(void) {
+    // Simple memory usage calculation
+    // In a real implementation, would query the memory manager
+    uint32_t used_tasks = get_active_task_count();
+    return (used_tasks * 100) / MAX_TASKS;
+}
+
+uint64_t get_tick_count(void) {
+    return tick_counter;
 }
