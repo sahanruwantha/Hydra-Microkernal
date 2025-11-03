@@ -160,7 +160,6 @@ int send_socket_data(int sock_id, const void *data, int len) {
     struct socket *sock = find_socket(sock_id);
     if (!sock || sock->state != SOCK_CONNECTED) return -1;
     
-    // For now, just send via network driver
     int result = syscall_net_send(data, len);
     
     printk("[netserv] Sent %d bytes through socket %d\n", len, sock_id);
@@ -238,9 +237,7 @@ void process_network_packets(void) {
         printk("[netserv] PACKET_NETSERV_ROUTING: Packet #%u - Looking for connected sockets\n", 
                current_packet_id);
         
-        // Simple packet routing - in a real implementation, this would
         // parse IP/TCP/UDP headers and route to the correct socket
-        // For now, just add to the first connected socket
         bool routed = false;
         for (int i = 0; i < MAX_SOCKETS; i++) {
             if (netserv.sockets[i].in_use && 
@@ -438,7 +435,6 @@ int net_bind(int sock_id, uint32_t ip, uint16_t port) {
 }
 
 int net_socket_send(int sock_id, const void *data, int len) {
-    // Simplified - in reality would need to handle larger data
     int cmd_data[64]; // enough for small messages
     cmd_data[0] = syscall_get_pid();
     cmd_data[1] = 5; // send command

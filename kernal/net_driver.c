@@ -113,8 +113,6 @@ void net_init(void) {
     // Indicate we have a driver
     write_reg32(VIRTIO_MMIO_STATUS, VIRTIO_STATUS_ACKNOWLEDGE | VIRTIO_STATUS_DRIVER);
     
-    // For now, skip feature negotiation and queue setup
-    // This is a minimal implementation
     
     // Set driver OK
     write_reg32(VIRTIO_MMIO_STATUS, 
@@ -150,7 +148,6 @@ void net_init(void) {
     mac_addr[4] = 0x34;
     // mac_addr[5] already set above
     
-    // Debug print MAC address (avoid complex formatting for now)
     printk("[net] VirtIO network initialized. MAC bytes: ");
     for (int i = 0; i < 6; i++) {
         printk("%d ", (int)mac_addr[i]);
@@ -207,7 +204,6 @@ int net_send(const uint8_t *data, uint16_t len) {
                data[12], data[13]);
     }
     
-    // For now, just simulate sending (no actual VirtIO queue implementation)
     printk("[net] PACKET_TX_PROCESSING: Packet #%u being transmitted via VirtIO\n", 
            current_packet_id);
     

@@ -1,11 +1,9 @@
 #include "../../kernal/syscall.h"
 #include <stddef.h>
 
-// Simple system call wrapper - for now we'll use direct function calls
 // since ECALL handling is disabled due to stability issues
 
 // System call implementations using direct kernel function calls
-// In a real microkernel, these would use ECALL instructions
 
 extern long handle_syscall(long syscall_num, long arg1, long arg2, long arg3, long arg4);
 extern void uart_write(const char *str, int len);
@@ -45,8 +43,6 @@ void syscall_exit(void) {
 
 // I/O syscalls for libc
 void syscall_write(const char *str, size_t len) {
-    // For now, use handle_syscall to implement I/O
-    // In a real system, this would be a proper syscall
     extern void uart_puts(const char *str);
     extern void printk(const char *format, ...);
     printk("%.*s", (int)len, str);

@@ -216,7 +216,6 @@ void udp_image_broadcast_demo(void) {
         printf("Broadcasted %d/%d bytes\n", sent, test_size);
         
         // Small delay between chunks to avoid overwhelming the network
-        // (In a real OS, we'd use proper timing)
         for (volatile int i = 0; i < 100000; i++) { }
     }
     

@@ -311,6 +311,5 @@ void log_set_console_level(log_level_t level) {
 }
 
 void log_flush(void) {
-    // In a real implementation, this would flush all open log files
     printk("[log] Flushing all log files\n");
 }

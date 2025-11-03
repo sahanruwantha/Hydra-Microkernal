@@ -18,7 +18,6 @@ int net_is_packet_available(void) {
     struct net_packet *pkt = net_receive();
     if (pkt != NULL) {
         // Put it back - this is not ideal but works for demo
-        // In real implementation, we'd have a peek function
         net_free_packet(pkt);
         return 1;
     }

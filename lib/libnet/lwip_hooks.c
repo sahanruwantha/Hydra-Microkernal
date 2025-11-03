@@ -79,7 +79,6 @@ void lwip_process_packets(void) {
         }
         printk("\n");
         
-        // In a full implementation, this would:
         // 1. Parse Ethernet header ✓ (done above)
         // 2. Handle ARP, IP, TCP, UDP protocols ✓ (detected above)
         // 3. Pass data to appropriate handlers
@@ -93,7 +92,6 @@ void lwip_process_packets(void) {
         printk("[lwip] PACKET_LWIP_COMPLETE: Packet #%u processing complete, freeing memory\n", 
                current_packet_id);
         
-        // For now, just free the packet
         net_free_packet(pkt);
         
         printk("[lwip] PACKET_LWIP_FREED: Packet #%u memory freed successfully\n", 

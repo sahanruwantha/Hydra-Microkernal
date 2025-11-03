@@ -27,7 +27,6 @@ static int k_snprintf(char *str, size_t size, const char *format, ...) {
     // Simplified snprintf - just handle basic format
     if (!str || size == 0) return 0;
     
-    // For now, just copy the format string for simple cases
     size_t len = 0;
     const char *p = format;
     while (*p && len < size - 1) {
@@ -156,7 +155,6 @@ bool distributed_add_node(uint32_t node_id, uint32_t ip_addr, node_type_t type) 
         i++;
     }
     
-    // Add simple node ID (just single digit for now)
     if (i < sizeof(new_node->name) - 1) {
         *dst++ = '0' + (node_id % 10);
         i++;
