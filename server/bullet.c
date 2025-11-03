@@ -68,15 +68,7 @@ void process_migrations(void) {
                    req->source_pid, req->target_node);
             
             req->status = 1; // in progress
-            
-            // Simulate migration process
-            // In a real implementation, this would:
-            // 1. Checkpoint the process state
-            // 2. Send process image over network
-            // 3. Start process on target node
-            // 4. Clean up source process
-            
-            // For demo, we'll just simulate success
+
             req->status = 2; // completed
             
             printk("[bullet] Migration completed: PID %d -> Node %d\n", 

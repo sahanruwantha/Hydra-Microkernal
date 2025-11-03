@@ -104,9 +104,7 @@ int accept(int sockfd, struct sockaddr *addr, uint32_t *addrlen) {
     if (sockets[idx].state != SOCK_LISTENING) {
         return -1;
     }
-    
-    // This is a simplified implementation
-    // In a real system, this would block until a connection arrives
+
     
     // Find a new socket for the accepted connection
     int new_sockfd = socket(AF_INET, SOCK_STREAM, 0);

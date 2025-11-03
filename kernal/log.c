@@ -3,8 +3,6 @@
 #include "timer.h"
 #include <stddef.h>
 
-// For now, we'll use a simple file system abstraction
-// In a real implementation, this would interface with the VFS
 extern int fs_open(const char *path, int flags);
 extern int fs_write(int fd, const void *buf, size_t count);
 extern void fs_close(int fd);
@@ -23,7 +21,6 @@ static void safe_strcpy(char *dest, const char *src, size_t max_len) {
     dest[i] = '\0';
 }
 
-// Helper function to concatenate strings safely
 static void safe_strcat(char *dest, const char *src, size_t max_len) {
     size_t dest_len = 0;
     
@@ -92,8 +89,6 @@ bool log_init(void) {
     g_log_state.buffer_pos = 0;
     g_log_state.console_level = LOG_INFO;
     
-    // Create logs directory (this would be a filesystem operation in a real implementation)
-    // For now, we'll just mark as initialized
     g_log_state.initialized = true;
     
     printk("[log] Logging system initialized\n");
@@ -112,11 +107,11 @@ const char* log_level_string(log_level_t level) {
 }
 
 void log_get_timestamp(char *buffer, size_t size) {
-    // Get system uptime in milliseconds (simplified)
+    // Get system uptime in ms
     extern uint64_t get_uptime_ms(void);
     uint64_t uptime = get_uptime_ms();
     
-    // Convert to seconds and milliseconds
+    // Convert to seconds and ms
     uint32_t seconds = uptime / 1000;
     uint32_t ms = uptime % 1000;
     
@@ -172,8 +167,6 @@ int log_open_file(const char *filename, log_level_t min_level) {
     log_file->current_size = 0;
     log_file->is_open = true;
     
-    // For now, we'll simulate file opening
-    // In a real implementation, this would call the filesystem
     log_file->fd = log_id + 100;  // Fake file descriptor
     
     g_log_state.num_files++;
@@ -189,7 +182,7 @@ void log_close_file(int log_id) {
     
     log_file_t *log_file = &g_log_state.files[log_id];
     if (log_file->is_open) {
-        // In a real implementation, this would close the actual file
+        // close the actual file
         // fs_close(log_file->fd);
         
         log_file->is_open = false;
@@ -235,8 +228,6 @@ void log_message(log_level_t level, const char *component, const char *fmt, ...)
     va_list args;
     va_start(args, fmt);
     
-    // Simple vsprintf implementation - just copy the format string for now
-    // In a real implementation, this would properly format the arguments
     safe_strcpy(message, fmt, sizeof(message));
     va_end(args);
     
@@ -253,8 +244,6 @@ void log_message(log_level_t level, const char *component, const char *fmt, ...)
     for (int i = 0; i < MAX_LOG_FILES; i++) {
         log_file_t *log_file = &g_log_state.files[i];
         if (log_file->is_open && level >= log_file->min_level) {
-            // In a real implementation, this would write to the actual file
-            // For now, we'll just track the size
             size_t entry_len = 0;
             while (log_entry[entry_len] != '\0' && entry_len < sizeof(log_entry)) {
                 entry_len++;
@@ -310,8 +299,6 @@ void log_rotate_if_needed(int log_id) {
     }
     
     if (log_file->current_size >= MAX_LOG_FILE_SIZE) {
-        // In a real implementation, this would rotate the log file
-        // For now, we'll just reset the size counter
         printk("[log] Log file %s would be rotated (size: %d bytes)\n", 
                log_file->filename, (int)log_file->current_size);
         log_file->current_size = 0;

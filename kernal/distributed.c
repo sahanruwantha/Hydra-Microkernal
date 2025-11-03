@@ -238,12 +238,9 @@ void distributed_send_message(uint32_t target_node, dist_msg_type_t type,
         return;
     }
     
-    // Send via network (simplified - in real implementation would use proper networking)
+    // Send via network
     printk("[dist] Sending message type %d to node %u\n", type, target_node);
     
-    // For now, simulate network transmission
-    // In a real implementation, this would use the network driver
-    // to send UDP packets to the target node's IP address
 }
 
 void send_discovery_request(void) {

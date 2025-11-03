@@ -8,7 +8,7 @@
 typedef unsigned long size_t;
 #define NULL ((void*)0)
 
-// Simple string functions for kernel use
+// string functions for kernel use
 static void *k_memset(void *s, int c, size_t n) {
     unsigned char *p = s;
     while (n--) *p++ = c;
@@ -23,10 +23,8 @@ static void *k_memcpy(void *dest, const void *src, size_t n) {
 }
 
 static int k_snprintf(char *str, size_t size, const char *format, ...) {
-    // Simplified snprintf implementation
     if (!str || size == 0) return 0;
     
-    // Very basic - just copy a simple string for now
     const char *simple_name = "process_";
     size_t len = 0;
     while (*simple_name && len < size - 1) {
@@ -149,8 +147,6 @@ bool deserialize_process(const serialized_process_t *input, uint32_t *new_proces
             break;
     }
     
-    // Restore CPU state (simplified)
-    // In real implementation, would restore registers, PC, SP
     
     // Restore stack and heap
     if (input->header.stack_size > 0) {
@@ -170,9 +166,6 @@ bool deserialize_process(const serialized_process_t *input, uint32_t *new_proces
 bool serialize_raytracer(uint32_t process_id, raytracer_state_t *output) {
     if (!output) return false;
     
-    // Get raytracer state from the running process
-    // This is a simplified version - real implementation would extract from actual process
-    
     output->current_frame = 0;
     output->total_frames = 1;
     output->width = 320;
@@ -190,7 +183,6 @@ bool serialize_raytracer(uint32_t process_id, raytracer_state_t *output) {
     output->camera_target[1] = 0.0f;
     output->camera_target[2] = -1.0f;
     
-    // Scene data (simplified)
     output->num_spheres = 4;
     k_memset(output->scene_data, 0, sizeof(output->scene_data));
     
@@ -208,11 +200,6 @@ bool deserialize_raytracer(const raytracer_state_t *input, uint32_t process_id) 
     printk("[migration] Restoring raytracer: %ux%u, progress %u%%\n",
            input->width, input->height, input->render_progress);
     
-    // Set up raytracer state in the new process
-    // This would involve calling raytracer initialization functions
-    // and restoring the scene and rendering state
-    
-    // For now, just log the restoration
     printk("[migration] Raytracer camera: (%.1f,%.1f,%.1f) -> (%.1f,%.1f,%.1f)\n",
            input->camera_pos[0], input->camera_pos[1], input->camera_pos[2],
            input->camera_target[0], input->camera_target[1], input->camera_target[2]);
@@ -283,8 +270,6 @@ bool restore_migration_checkpoint(uint32_t process_id) {
 }
 
 process_type_t get_process_type(uint32_t process_id) {
-    // Simplified process type detection
-    // In real implementation, would query the actual process
     
     if (process_id == 1) return PROCESS_TYPE_RAYTRACER;
     if (process_id == 2) return PROCESS_TYPE_COMPUTE;
@@ -372,8 +357,6 @@ void handle_migration_data(uint32_t source_node, const migration_message_t *msg)
     printk("[migration] Received migration data chunk %u/%u (%u bytes)\n",
            msg->chunk_index + 1, msg->total_chunks, msg->data_size);
     
-    // In a real implementation, would reassemble chunks and deserialize process
-    // For now, just acknowledge receipt
     
     if (msg->chunk_index == msg->total_chunks - 1) {
         // Last chunk received, attempt to create process

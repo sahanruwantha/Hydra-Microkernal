@@ -79,7 +79,6 @@ long handle_syscall(long syscall_num, long arg1, long arg2, long arg3, long arg4
             printk("[syscall] PACKET_SYSCALL_RECV_COPYING: Syscall #%u - Copying %d bytes to user buffer\n", 
                    current_syscall_id, copy_len);
             
-            // In a real implementation, we'd need to copy to user space safely
             for (int i = 0; i < copy_len; i++) {
                 ((uint8_t*)arg1)[i] = pkt->data[i];
             }

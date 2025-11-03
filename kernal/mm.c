@@ -87,13 +87,13 @@ void kfree(void *ptr) {
     block->free = 1;
     total_allocated -= block->size;
     
-    // Coalesce with next block if it's free
+    // next block if it's free
     if (block->next && block->next->free) {
         block->size += block->next->size + sizeof(struct mem_block);
         block->next = block->next->next;
     }
     
-    // Coalesce with previous block if it's free
+    // previous block if it's free
     struct mem_block *current = heap_head;
     while (current && current->next != block) {
         current = current->next;

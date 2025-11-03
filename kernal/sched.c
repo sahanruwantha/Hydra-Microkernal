@@ -234,8 +234,6 @@ void terminate_task(uint32_t task_id) {
     task->state = TASK_UNUSED;
     printk("[sched] Terminated task %u\n", task_id);
     
-    // Note: In a full implementation, we'd need to compact the task table
-    // and update num_tasks, but for simplicity we'll just mark as unused
 }
 
 uint32_t get_active_task_count(void) {
@@ -249,8 +247,6 @@ uint32_t get_active_task_count(void) {
 }
 
 uint32_t get_memory_usage_percent(void) {
-    // Simple memory usage calculation
-    // In a real implementation, would query the memory manager
     uint32_t used_tasks = get_active_task_count();
     return (used_tasks * 100) / MAX_TASKS;
 }

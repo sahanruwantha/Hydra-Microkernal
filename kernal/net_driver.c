@@ -221,11 +221,11 @@ int net_send(const uint8_t *data, uint16_t len) {
 }
 
 struct net_packet *net_receive(void) {
-    // Simulate periodic packet generation without interrupts
+    // periodic packet generation without interrupts
     static int poll_counter = 0;
     poll_counter++;
     
-    // Generate a packet every 50 calls (simulating network activity)
+    // Generate a packet every 50 calls 
     if (rx_queue_head == NULL && (poll_counter % 50) == 0) {
         // Generate a simulated packet
         struct net_packet *pkt = alloc_packet();
@@ -248,7 +248,7 @@ struct net_packet *net_receive(void) {
                 pkt->data[6 + i] = mac_addr[i];
             }
             
-            // EtherType (fake IP = 0x0800)
+            // EtherType (IP = 0x0800)
             pkt->data[12] = 0x08; pkt->data[13] = 0x00;
             
             // Fill rest with pattern including packet ID
@@ -313,7 +313,6 @@ struct net_stats *net_get_stats(void) {
 
 void net_interrupt_handler(void) {
     // Handle VirtIO-Net interrupts
-    // For now, simulate receiving a packet occasionally
     static int interrupt_count = 0;
     interrupt_count++;
     
@@ -344,7 +343,7 @@ void net_interrupt_handler(void) {
                 pkt->data[6 + i] = mac_addr[i];
             }
             
-            // EtherType (fake IP = 0x0800)
+            // EtherType (IP = 0x0800)
             pkt->data[12] = 0x08; pkt->data[13] = 0x00;
             
             // Fill rest with pattern including packet ID

@@ -9,11 +9,11 @@ extern void *kmalloc(size_t size);
 #define CAP_EXECUTE 0x04
 #define CAP_DELETE  0x08
 
-// Capability structure (simplified)
+// Capability structure
 struct capability {
     pid_t process_id;
     int permissions;
-    uint64_t magic;  // Simple validation
+    uint64_t magic;  
 };
 
 #define CAPABILITY_MAGIC 0xDEADBEEFCAFEBABE
