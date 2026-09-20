@@ -2,8 +2,25 @@
 #include "printk.h"
 #include "mm.h"
 #include "sched.h"
+#include "irq.h"
 
-extern int current_task; // Defined in sched.c
+/*
+ * Per-message tracing. On by default so existing logs are unchanged.
+ * Build with TRACE_IPC=0 to silence the six per-message hot-path
+ * traces (send request, queued, received x2, queue empty/draining).
+ *
+ * This matters for benchmarking: each trace is a synchronous UART
+ * write, so with tracing on an IPC round trip measures the serial
+ * port rather than the IPC path. Warnings and errors are never gated.
+ */
+#ifndef TRACE_IPC
+#define TRACE_IPC 1
+#endif
+#if TRACE_IPC
+#define ipc_trace(...) printk(__VA_ARGS__)
+#else
+#define ipc_trace(...) do { } while (0)
+#endif
 
 static struct msg_queue message_queues[MAX_TASKS];
 static struct message *free_messages = 0;
@@ -103,13 +120,33 @@ static void free_message(struct message *msg) {
     }
 }
 
-int send_message(int receiver_pid, const void *data, int size) {
-    printk("[ipc] Send request: PID %d -> PID %d (%d bytes)\n", 
-           current_task, receiver_pid, size);
+static void ipc_task_cleanup_locked(int task_slot) {
+    if (task_slot < 0 || task_slot >= MAX_TASKS) return;
+    struct msg_queue *queue = &message_queues[task_slot];
+    struct message *msg = queue->head;
+    while (msg) {
+        struct message *next = msg->next;
+        free_message(msg);
+        msg = next;
+    }
+    queue->head = queue->tail = 0;
+    queue->count = 0;
+}
+
+void ipc_task_cleanup(int task_slot) {
+    irq_state_t irq = irq_save();
+    ipc_task_cleanup_locked(task_slot);
+    irq_restore(irq);
+}
+
+static int send_message_locked(int receiver_pid, const void *data, int size) {
+    int sender_pid = task_current_pid();
+    ipc_trace("[ipc] Send request: PID %d -> PID %d (%d bytes)\n", 
+           sender_pid, receiver_pid, size);
     
-    if (receiver_pid < 0 || receiver_pid >= MAX_TASKS) {
-        printk("[ipc] ERROR: Invalid receiver PID %d (valid range: 0-%d)\n", 
-               receiver_pid, MAX_TASKS - 1);
+    int receiver_slot = task_slot_from_pid((uint32_t)receiver_pid);
+    if (receiver_pid <= KERNEL_TASK_PID || receiver_slot < 0) {
+        printk("[ipc] ERROR: Unknown receiver PID %d\n", receiver_pid);
         return -1;
     }
     
@@ -132,12 +169,12 @@ int send_message(int receiver_pid, const void *data, int size) {
     struct message *msg = alloc_message();
     if (!msg) {
         printk("[ipc] ERROR: Failed to allocate message for PID %d -> PID %d\n", 
-               current_task, receiver_pid);
+               sender_pid, receiver_pid);
         return -1;
     }
     
     // Fill message
-    msg->sender_pid = current_task;
+    msg->sender_pid = sender_pid;
     msg->receiver_pid = receiver_pid;
     msg->size = size;
     
@@ -149,7 +186,7 @@ int send_message(int receiver_pid, const void *data, int size) {
     }
     
     // Add to receiver's queue
-    struct msg_queue *queue = &message_queues[receiver_pid];
+    struct msg_queue *queue = &message_queues[receiver_slot];
     if (!queue->head) {
         queue->head = queue->tail = msg;
     } else {
@@ -158,8 +195,8 @@ int send_message(int receiver_pid, const void *data, int size) {
     }
     queue->count++;
     
-    printk("[ipc] Message queued: PID %d -> PID %d (%d bytes), queue depth: %d\n", 
-           current_task, receiver_pid, size, queue->count);
+    ipc_trace("[ipc] Message queued: PID %d -> PID %d (%d bytes), queue depth: %d\n", 
+           sender_pid, receiver_pid, size, queue->count);
     
     // Warning for high queue depth
     if (queue->count > 8) {
@@ -176,8 +213,16 @@ int send_message(int receiver_pid, const void *data, int size) {
     return 0;
 }
 
-int recv_message(int sender_pid, void *buffer, int max_size) {
-    int current_pid = current_task;
+int send_message(int receiver_pid, const void *data, int size) {
+    irq_state_t irq = irq_save();
+    int result = send_message_locked(receiver_pid, data, size);
+    irq_restore(irq);
+    return result;
+}
+
+static int recv_message_locked(int sender_pid, void *buffer, int max_size) {
+    int current_pid = task_current_pid();
+    int current_slot = current_task;
     
     if (!buffer) {
         printk("[ipc] ERROR: Null buffer pointer in recv_message\n");
@@ -189,30 +234,36 @@ int recv_message(int sender_pid, void *buffer, int max_size) {
         return -1;
     }
     
-    if (current_pid < 0 || current_pid >= MAX_TASKS) {
+    if (current_pid <= KERNEL_TASK_PID || current_slot <= 0 ||
+        current_slot >= num_tasks) {
         printk("[ipc] ERROR: Invalid current task PID: %d\n", current_pid);
         return -1;
     }
     
-    struct msg_queue *queue = &message_queues[current_pid];
+    struct msg_queue *queue = &message_queues[current_slot];
     
     if (!queue->head) {
         return -1;
     }
     
     // Only log when we actually have a message to process
-    printk("[ipc] Message received: PID %d from PID %d (max %d bytes)\n", 
+    ipc_trace("[ipc] Message received: PID %d from PID %d (max %d bytes)\n", 
            current_pid, sender_pid, max_size);
     
+    struct message *prev = 0;
     struct message *msg = queue->head;
-    queue->head = msg->next;
-    if (!queue->head) {
-        queue->tail = 0;
+    while (msg && sender_pid >= 0 && msg->sender_pid != sender_pid) {
+        prev = msg;
+        msg = msg->next;
     }
+    if (!msg) return -1;
+    if (prev) prev->next = msg->next;
+    else queue->head = msg->next;
+    if (queue->tail == msg) queue->tail = prev;
     queue->count--;
     
     // Validate message integrity
-    if (msg->sender_pid < 0 || msg->sender_pid >= MAX_TASKS) {
+    if (msg->sender_pid <= KERNEL_TASK_PID) {
         printk("[ipc] WARNING: Message with invalid sender PID: %d\n", msg->sender_pid);
     }
     
@@ -232,26 +283,34 @@ int recv_message(int sender_pid, void *buffer, int max_size) {
     
     int actual_size = msg->size;
     int sender = msg->sender_pid;
+    (void)sender;   /* only read by the (optionally gated) trace below */
     
     if (copy_size < actual_size) {
         printk("[ipc] WARNING: Message truncated: %d bytes copied, %d bytes total\n", 
                copy_size, actual_size);
     }
     
-    printk("[ipc] Message received: PID %d <- PID %d (%d bytes), remaining queue: %d\n", 
+    ipc_trace("[ipc] Message received: PID %d <- PID %d (%d bytes), remaining queue: %d\n", 
            current_pid, sender, copy_size, queue->count);
     
     // Log queue state changes
     if (queue->count == 0) {
-        printk("[ipc] Queue empty: PID %d has processed all pending messages\n", current_pid);
+        ipc_trace("[ipc] Queue empty: PID %d has processed all pending messages\n", current_pid);
     } else if (queue->count < 5 && queue->count > 0) {
-        printk("[ipc] Queue draining: PID %d has %d messages remaining\n", 
+        ipc_trace("[ipc] Queue draining: PID %d has %d messages remaining\n", 
                current_pid, queue->count);
     }
     
     free_message(msg);
     
     return actual_size;
+}
+
+int recv_message(int sender_pid, void *buffer, int max_size) {
+    irq_state_t irq = irq_save();
+    int result = recv_message_locked(sender_pid, buffer, max_size);
+    irq_restore(irq);
+    return result;
 }
 
 int try_recv_message(int sender_pid, void *buffer, int max_size) {
@@ -323,12 +382,13 @@ void ipc_debug_status(void) {
 
 // Log status of a specific queue
 void ipc_log_queue_status(int pid) {
-    if (pid < 0 || pid >= MAX_TASKS) {
+    int slot = task_slot_from_pid((uint32_t)pid);
+    if (slot < 0) {
         printk("[ipc] ERROR: Invalid PID %d for queue status\n", pid);
         return;
     }
     
-    struct msg_queue *queue = &message_queues[pid];
+    struct msg_queue *queue = &message_queues[slot];
     printk("[ipc] Queue status for PID %d: %d messages", pid, queue->count);
     
     if (queue->count > 0) {
