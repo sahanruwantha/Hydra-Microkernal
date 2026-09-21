@@ -343,6 +343,47 @@ def fig_published():
     print("wrote fig6_published.png")
 
 
+# ---------------------------------------------------------------- Fig. 7
+def fig_fault():
+    """Workload counter across the checkpoint / fault / recovery sequence.
+
+    Values are read from the demonstration's own log output:
+      counter 30 at checkpoint, 60 at fault, frozen at 60, 90 after restore.
+    The counter is a global, so the point of the figure is that the workload
+    stops advancing while the task is dead and advances again once it is
+    restored - not that the value rolls back to the checkpointed one.
+    """
+    stage = ["spawn", "run", "check-\npoint", "run", "fault", "detect",
+             "restore", "run"]
+    value = [0, 30, 30, 60, 60, 60, 60, 90]
+    x = list(range(len(stage)))
+
+    fig, ax = plt.subplots(figsize=(COL_W, 2.05))
+    ax.plot(x, value, color=C1, linewidth=1.4, marker="o", markersize=3.4,
+            markeredgecolor=INK, markeredgewidth=0.4, zorder=3)
+
+    # the dead interval, shaded rather than coloured, so it survives greyscale
+    ax.axvspan(4, 6, color=C2, alpha=0.16, zorder=1)
+    ax.annotate("task dead,\ncounter frozen", xy=(5, 60), xytext=(2.35, 78),
+                fontsize=6.5, color=INK, ha="center",
+                arrowprops=dict(arrowstyle="->", linewidth=0.6, color=INK2))
+    ax.annotate("checkpoint\ntaken", xy=(2, 30), xytext=(0.35, 52),
+                fontsize=6.5, color=INK, ha="center",
+                arrowprops=dict(arrowstyle="->", linewidth=0.6, color=INK2))
+    ax.annotate("restored,\nprogress resumes", xy=(7, 90), xytext=(5.4, 30),
+                fontsize=6.5, color=INK, ha="center",
+                arrowprops=dict(arrowstyle="->", linewidth=0.6, color=INK2))
+
+    ax.set_xticks(x)
+    ax.set_xticklabels(stage, fontsize=6, linespacing=1.1)
+    ax.set_ylabel("Workload counter")
+    ax.set_ylim(-6, 104)
+    tidy(ax)
+    fig.savefig(OUT / "fig7_fault.png")
+    plt.close(fig)
+    print("wrote fig7_fault.png")
+
+
 if __name__ == "__main__":
     kern = parse(Path("bench/results/KERNEL.log"))
     user = parse(Path("bench/results/USERSPACE.log"))
@@ -353,3 +394,4 @@ if __name__ == "__main__":
     fig_tcb()
     fig_phases(kern, user)
     fig_published()
+    fig_fault()

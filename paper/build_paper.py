@@ -408,6 +408,28 @@ def build():
          "live [2].",
          first=True)
 
+    body(doc,
+         "Table I places these systems side by side. Two things stand out. "
+         "Every first-generation implementation put the mechanism in the "
+         "kernel, so the placement question was not so much settled as never "
+         "posed; and only the 1993 Mach work built both placements on one "
+         "kernel and compared them, which is why it is the study this paper "
+         "repeats.")
+
+    table_caption(doc, "I", "Representative process-migration "
+                            "implementations")
+    add_table(doc, [
+        ["System", "Year", "Mechanism", "State transferred"],
+        ["DEMOS/MP [16]", "1983", "kernel", "process, message channels"],
+        ["LOCUS [17]", "1983", "kernel", "process, open files"],
+        ["MOSIX [15]", "1985", "kernel", "process, file state"],
+        ["V [18]", "1988", "kernel", "address space, pre-copy"],
+        ["Sprite [14]", "1991", "kernel", "process, file state"],
+        ["Mach [1]", "1993", "both compared", "task, memory objects"],
+        ["CRIU [19]", "2011\u2013", "user", "process tree, descriptors"],
+        ["This work", "2025", "both compared", "registers, stack, payload"],
+    ], widths=[0.82, 0.34, 0.82, 1.32])
+
     sub_head(doc, "B", "The 1993 Mach measurement")
     body(doc,
          "Milojicic et al. [1] built three migration designs on Mach. The "
@@ -521,7 +543,7 @@ def build():
     sub_head(doc, "B", "The checkpoint record")
     body(doc,
          "The record is a self-describing binary blob whose layout is given "
-         "in Table I. It is position-independent in one specific sense that "
+         "in Table II. It is position-independent in one specific sense that "
          "matters for correctness: the saved stack pointer is stored as an "
          "offset from the base of the stack image rather than as an absolute "
          "address. A restored task is given a fresh stack at a different "
@@ -532,7 +554,7 @@ def build():
          "unchanged.",
          first=True)
 
-    table_caption(doc, "I", "Checkpoint record layout")
+    table_caption(doc, "II", "Checkpoint record layout")
     add_table(doc, [
         ["Region", "Size", "Contents"],
         ["Header", "40 B", "magic, version, pid, sizes"],
@@ -632,14 +654,51 @@ def build():
          "that issues real user-mode traps rather than direct kernel calls, "
          "so that the two measurements describe the same kind of event.")
 
-    sub_head(doc, "D", "Reproducibility")
+    sub_head(doc, "D", "Reviving the reference system")
+    body(doc,
+         "Using a 2002 operating system as a live reference point required "
+         "two obstacles to be cleared, and we record them because they are "
+         "the reason such comparisons are rarely attempted.",
+         first=True)
+
+    body(doc,
+         "First, Amoeba\u2019s own disk partitioning tool writes a partition "
+         "entry but does not write the 0xAA55 boot signature into the master "
+         "boot record. On period hardware the signature was already present, "
+         "written by DOS; on a blank emulated disk it is not, and Amoeba\u2019s "
+         "own virtual-disk server then rejects the partition it has just "
+         "created, reporting an invalid partition table. Writing the two "
+         "bytes externally resolves it.")
+
+    body(doc,
+         "Second, the installer cannot read the distribution CD: the IDE "
+         "driver does not support ATAPI, and the setup scripts contain no "
+         "reference to a CD-ROM at all. Software is loaded instead from "
+         "floppy volumes, each a 512-byte volume label followed by a raw "
+         "slice of a compressed archive. We reconstructed that format from "
+         "the distribution\u2019s own sources \u2014 the label carries a "
+         "magic number, media and data sizes, volume sequence numbers and a "
+         "CRC-16/CCITT over the payload seeded with 0xFFFF \u2014 and "
+         "verified the reconstruction by regenerating the shipped volumes "
+         "byte for byte from their own payloads. That allows arbitrary "
+         "packages, including the benchmark suite used in Section V-E, to be "
+         "installed into the running system.")
+
+    body(doc,
+         "Neither obstacle is a defect of Amoeba as it was used in 2002. Both "
+         "are artefacts of running period software on emulated hardware, and "
+         "both are the kind of detail that silently prevents historical "
+         "systems from being used as reference points. Our scripts for the "
+         "procedure are published with the rest of the artefact.")
+
+    sub_head(doc, "E", "Reproducibility")
     body(doc,
          "Every number in this paper is produced by a scripted pipeline from "
          "a clean checkout. The two kernels are built by setting one make "
          "variable; the sweep harness boots each under the emulator, captures "
          "the serial output, and extracts the instrumented lines into a log; "
          "an analysis script groups the lines into per-migration records and "
-         "computes the statistics reported in Table II. The figures are "
+         "computes the statistics reported in Table III. The figures are "
          "regenerated from those same logs by a single script, so no figure "
          "in this paper contains a hand-entered number. The raw logs are "
          "published alongside the source, which allows the analysis to be "
@@ -651,14 +710,14 @@ def build():
 
     sub_head(doc, "A", "Architectural placement")
     body(doc,
-         "Table II gives the per-phase and total costs for both builds. Every "
+         "Table III gives the per-phase and total costs for both builds. Every "
          "phase ratio lies between 0.99 and 1.00, and every confidence "
          "interval overlaps. The headline total-latency ratio is 1.00. On "
          "this kernel, the placement of the migration mechanism is not a "
          "performance question.",
          first=True)
 
-    table_caption(doc, "II", "Migration cost by phase, kilocycles, "
+    table_caption(doc, "III", "Migration cost by phase, kilocycles, "
                              "mean ± 95% CI half-width, n = 60 per build")
     add_table(doc, [
         ["Phase", "Kernel-res.", "User-space", "Ratio"],
@@ -673,7 +732,7 @@ def build():
          "Equal means can hide unequal distributions, so Fig. 3 plots the "
          "spread rather than repeating the averages. The boxes overlap at "
          "every checkpoint size and the medians sit within each other's "
-         "interquartile ranges. The equality in Table II is not an artefact "
+         "interquartile ranges. The equality in Table III is not an artefact "
          "of averaging over a heavy tail.",
          first=True)
     figure(doc, "fig2_distribution.png",
@@ -754,10 +813,10 @@ def build():
          "trip to a null system call within each system is comparable, "
          "because both operations pay the same per-trap emulation overhead on "
          "the same host, so the ratio isolates what the IPC mechanism adds "
-         "over a bare privilege transition. Table III reports it.",
+         "over a bare privilege transition. Table IV reports it.",
          first=True)
 
-    table_caption(doc, "III", "Round-trip cost relative to the null system "
+    table_caption(doc, "IV", "Round-trip cost relative to the null system "
                               "call, measured on the same host")
     add_table(doc, [
         ["System", "Null syscall", "Round trip", "Ratio"],
@@ -792,7 +851,7 @@ def build():
          "for every message sent and received. Because that write is "
          "synchronous it dominated the measurement completely: a round trip "
          "cost 7.5 million cycles with tracing enabled against 252,000 with "
-         "it disabled, a factor of thirty. The figures in Table III were "
+         "it disabled, a factor of thirty. The figures in Table IV were "
          "taken with per-message tracing compiled out. We record the number "
          "because it is a trap that any similar measurement can fall into.")
 
@@ -818,11 +877,11 @@ def build():
          "end. The seven failures were fragment loss in the unreliable "
          "multicast transport, not faults in checkpoint or restore: in every "
          "failed run the source fragmented successfully and the destination "
-         "timed out waiting for a missing frame. Table IV gives the costs of "
+         "timed out waiting for a missing frame. Table V gives the costs of "
          "the successful runs.",
          first=True)
 
-    table_caption(doc, "IV", "Cross-node migration cost, cycles, "
+    table_caption(doc, "V", "Cross-node migration cost, cycles, "
                              "mean ± 95% CI half-width, n = 8")
     add_table(doc, [
         ["Phase", "Mean cycles"],
@@ -844,17 +903,56 @@ def build():
     sub_head(doc, "G", "Fault tolerance from the same primitives")
     body(doc,
          "Migration and fault recovery are the same mechanism used for "
-         "different reasons: both checkpoint a task and restore it "
-         "elsewhere. A demonstration confirms this on our kernel. A task "
-         "maintaining a counter is checkpointed, killed, and restored from "
-         "the saved record, and resumes from the checkpointed value rather "
-         "than from zero. Checkpointing cost 2,848,714 cycles and restoring "
-         "1,433,502 cycles in a single run, so recovery is roughly half the "
-         "price of the save. Systems of the 1990s needed separate subsystems "
-         "for the two purposes; here one pair of system calls serves both, "
-         "which is part of why the in-kernel count in Section V-D is as small "
-         "as it is.",
+         "different reasons: both checkpoint a task and restore it. The 1999 "
+         "survey [3] identifies fault resilience as one of the applications "
+         "that would justify migration, and systems of that era generally "
+         "needed a separate subsystem to provide it \u2014 a checkpoint "
+         "library distinct from the migration machinery, each of substantial "
+         "size. If the two are really one mechanism, one pair of system calls "
+         "should serve both.",
          first=True)
+
+    body(doc,
+         "A demonstration confirms this. A task incrementing a counter is "
+         "spawned and allowed to run; a checkpoint is taken; the task runs "
+         "further; the task is then killed to simulate a fault; the failure "
+         "is detected by observing that the counter has stopped advancing; "
+         "and the task is restored from the saved record. Fig. 7 shows the "
+         "sequence.")
+
+    figure(doc, "fig7_fault.png",
+           "Fig. 7. Workload progress across the checkpoint, fault and "
+           "recovery sequence. The counter advances, freezes while the task "
+           "is dead (shaded), and advances again once the task is restored "
+           "from the checkpoint taken earlier.")
+
+    body(doc,
+         "The checkpoint was 8,340 bytes and was taken with the counter at "
+         "30; the task reached 60 before being killed; the counter remained "
+         "at 60 for the duration of the fault; and after restore the workload "
+         "advanced to 90. Checkpointing cost 2,848,714 cycles and restoring "
+         "1,433,502 cycles, so recovery is roughly half the price of the "
+         "save \u2014 which is what one expects, since restore writes a task "
+         "structure and maps a stack while checkpoint must also walk and "
+         "serialise the source.",
+         first=True)
+
+    body(doc,
+         "One limitation should be stated precisely. The counter in this "
+         "demonstration is a global variable rather than task-private state, "
+         "so the figure shows the workload resuming execution, not the "
+         "counter rolling back to its checkpointed value. What the "
+         "demonstration establishes is that the restored task is a live, "
+         "scheduled task that continues to make progress; a full "
+         "rollback-recovery argument would require the workload\u2019s state "
+         "to live inside the checkpointed region, which our bounded process "
+         "model supports but this particular demonstration does not exercise.")
+
+    body(doc,
+         "The relevance to Section V-D is direct. Because fault recovery and "
+         "migration share the same two system calls, the in-kernel cost of "
+         "providing both is the 393 lines counted there, not that figure plus "
+         "a separate checkpointing subsystem.")
 
     # =====================================================================
     section_head(doc, "VI", "Discussion")
@@ -939,7 +1037,7 @@ def build():
          "is worth, measuring a real user-to-supervisor transition and back "
          "at 4,804 cycles against a total migration cost of about 4.06 "
          "Mcycles; a migration server making even a few hundred such calls "
-         "would remain well inside the confidence intervals of Table II. "
+         "would remain well inside the confidence intervals of Table III. "
          "Replicating the comparison on a kernel with a hardware-enforced "
          "boundary, seL4 on RISC-V being the obvious candidate, is the first "
          "piece of follow-on work we would do.")
@@ -951,7 +1049,7 @@ def build():
          "phases that dominate Fig. 4 would grow accordingly; whether they "
          "grow equally in both placements is not something our data can "
          "answer. The cross-node sample is small at eight successful runs, "
-         "and its transport is unreliable by construction, so Table IV should "
+         "and its transport is unreliable by construction, so Table V should "
          "be read as an order of magnitude rather than a precise cost.")
 
     body(doc,
