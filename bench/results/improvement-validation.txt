@@ -1,0 +1,134 @@
+Hydra post-improvement validation
+Date: 2026-08-14
+Platform: qemu-system-riscv64, virt machine, VirtIO MMIO v2
+
+FUNCTIONAL REGRESSION (USERSPACE, MEMOPS=WORD)
+  local checkpoint/restore:       60/60 PASS
+  malformed checkpoint rejection:  1/1 PASS
+  fault recovery:                  1/1 PASS
+  unhandled/recursive traps:         0
+  task-table-full failures:           0
+
+CONTROLLED MEMORY-COPY A/B (60 runs per configuration)
+  metric                  BYTE baseline       WORD optimized     change
+  serialize mean             892,326 cycles      778,237 cycles   -12.8%
+  deserialize mean           826,556 cycles      840,740 cycles    +1.7%
+  total latency mean       3,182,421 cycles    3,123,386 cycles    -1.9%
+  64 KB total mean         3,900,265 cycles    3,548,886 cycles    -9.0%
+
+  BYTE and WORD runs used the same upgraded kernel and QEMU command;
+  only MEMOPS_MODE changed. All 60 functional restores passed in both.
+
+CROSS-NODE REGRESSION (two QEMUs over UDP multicast)
+  network smoke test:             20/20 peer frames on both nodes
+  source migrations acknowledged: 15/15
+  destination migrations restored:15/15 PASS
+  timeouts:                            0
+  restore failures:                    0
+
+  phase                         mean +/- 95% CI cycles
+  source fragmentation          1,599,333 +/- 123,490
+  source ACK completion         5,232,068 +/- 309,261
+  destination reassembly        1,194,211 +/-  97,967
+  destination restore             947,643 +/-  82,938
+
+HISTORICAL COMPARISON
+  Original committed dissertation run: 8/15 cross-node completions.
+  Upgraded reliable protocol:          15/15 cross-node completions.
+
+NOTES
+  QEMU cycle counts are host-sensitive. Treat the controlled BYTE/WORD A/B
+  percentages as the performance evidence and the 15/15 result as functional
+  reliability evidence. This does not make UDP multicast production-grade.
+
+PREEMPTIVE SCHEDULER / FULL-STATE FOLLOW-UP
+  scheduler lifecycle reuse:         32/32 PASS
+  non-yielding task timer preemption:      PASS
+  integer + floating-point registers:      PASS across 20 ms
+  local checkpoint/restore:           60/60 PASS
+  malformed checkpoint rejection:      1/1 PASS
+  fault recovery:                      1/1 PASS
+  cross-node ACK + restore:          15/15 PASS
+  unhandled/recursive traps:               0
+
+  Checkpoint v2 captures a 544-byte complete trap frame and produces an
+  8,776-byte zero-payload record. One follow-up QEMU run measured 4,592,228
+  mean total cycles (60 runs). This is a new safety-capable configuration,
+  not a controlled before/after performance experiment; do not compare that
+  number directly with the earlier BYTE/WORD A/B result.
+
+SV39 ISOLATION / CONCURRENCY FOLLOW-UP
+  physical page allocator/reclamation:    PASS
+  kernel text RX + data RW/NX:             PASS
+  user code RX + private stack RW/NX:      PASS
+  U-mode GET_PID/YIELD/EXIT ecalls:        PASS
+  attempted kernel-data write:             BLOCKED (store page fault 15)
+  offending-task containment/reclamation: PASS
+  scheduler full-frame regression:         PASS
+  local checkpoint/restore:               60/60 PASS
+  malformed checkpoint + fault recovery:   PASS
+  two-node unique smoke frames:          20/20 on both nodes
+  two-node migration ACK + restore:       15/15 PASS
+  unhandled/recursive/fatal traps:             0
+
+  One 60-run QEMU validation measured 4,429,535 mean total cycles in the
+  Sv39 + preemption + locking configuration. As above, absolute QEMU cycle
+  values are host-sensitive; this is a functional safety baseline, not a
+  controlled performance comparison with the dissertation dataset.
+
+UACCESS / CHECKPOINT V3 FOLLOW-UP
+  U-to-supervisor IPC copyin/copyout:      PASS
+  invalid IPC/network user pointers:      REJECTED
+  live isolated checkpoint/restore:       PASS
+  fresh Sv39 destination address space:   PASS
+  exact user-page reclamation:            PASS
+  attempted kernel-data write:            BLOCKED (store page fault 15)
+  scheduler full-frame regression:         PASS
+  local checkpoint/restore:               60/60 PASS
+  malformed checkpoint + fault recovery:  PASS
+  two-node unique smoke frames:          20/20 on both nodes
+  source migrations acknowledged:        15/15 PASS
+  destination migrations restored:       15/15 PASS
+  unhandled/recursive/fatal traps:             0
+
+  Checkpoint v3 uses an 8,780-byte zero-payload supervisor record and a
+  16,972-byte isolated record containing both 8 KiB stacks. One clean 60-run
+  QEMU validation measured 4,586,532 mean total cycles (95% CI +/- 128,949).
+  This is a safety/functionality follow-up, not a controlled comparison with
+  the original dissertation dataset.
+
+  The final dual-QEMU regression completed all 15 migrations with no timeout
+  or restore failure. Its cross-node phase means were 1,714,965 cycles for
+  source fragmentation, 18,145,273 for acknowledged completion, 1,210,422
+  for destination reassembly, and 1,002,858 for destination restore. Timing is
+  host-sensitive; the completion counts are the acceptance criterion.
+
+PRIVATE DATA/HEAP / CHECKPOINT V4 FOLLOW-UP
+  private two-page U data/heap RW/NX:      PASS
+  unmapped data-to-stack guard page:       PASS
+  first/last data words after restore:     PASS
+  forged supervisor restore state:        REJECTED before allocation
+  exact address-space page reclamation:    PASS
+  scheduler full-frame regression:         PASS
+  local checkpoint/restore:               60/60 PASS
+  fault recovery:                          PASS
+  two-node unique smoke frames:          20/20 on both nodes
+  supervisor cross-node ACK + restore:   15/15 PASS
+  isolated cross-node ACK + restore:       1/1 PASS
+  isolated destination data/heap check:    PASS
+  unhandled/recursive/fatal traps:             0
+
+  Checkpoint v4 records are 8,784 bytes for a zero-payload supervisor task
+  and 25,168 bytes for an isolated task with both private regions. The isolated
+  image used 18 Ethernet fragments. All 16 source migrations were acknowledged
+  and all 16 destination images restored without retry exhaustion or failure.
+
+  The clean v4 single-node supervisor sweep measured 4,775,700 mean total
+  cycles (95% CI +/- 150,495; n=60). This is a host-sensitive follow-up rather
+  than a controlled replacement for the dissertation's placement comparison.
+
+  Final v4 supervisor cross-node means (n=15): source fragmentation 1,996,768,
+  ACK completion 18,762,388, destination reassembly 1,314,394, and destination
+  restore 959,692 cycles. The one isolated path sample measured 3,858,415,
+  13,234,923, 3,059,545, and 3,010,627 cycles respectively. The isolated sample
+  proves end-to-end function but is not a statistical performance result.

@@ -1,0 +1,267 @@
+#include "mm.h"
+#include "printk.h"
+#include "irq.h"
+
+// Heap management
+static struct mem_block *heap_head = 0;
+static char *heap_start;
+static char *heap_end;
+static unsigned int total_allocated = 0;
+
+#define PAGE_POOL_MAX_PAGES 4096
+static unsigned char page_bitmap[PAGE_POOL_MAX_PAGES];
+static unsigned int page_count;
+static unsigned int pages_used;
+static char *page_pool_start;
+static char *page_pool_end;
+
+static void page_allocator_init(void) {
+    page_pool_start = &__page_pool_start;
+    page_pool_end = &__page_pool_end;
+    page_count = (unsigned int)((page_pool_end - page_pool_start) / PAGE_SIZE);
+    if (page_count > PAGE_POOL_MAX_PAGES) page_count = PAGE_POOL_MAX_PAGES;
+    pages_used = 0;
+    for (unsigned int i = 0; i < page_count; i++) page_bitmap[i] = 0;
+    printk("[mm] Page pool: 0x%lx - 0x%lx (%u pages)\n",
+           (unsigned long)page_pool_start, (unsigned long)page_pool_end,
+           page_count);
+}
+
+void mm_init(void) {
+    // Use linker script symbols to determine heap bounds
+    heap_start = &__heap_start;
+    heap_end = &__heap_end;
+    
+    // Align heap start to 8 bytes
+    heap_start = (char *)(((unsigned long)heap_start + 7) & ~7);
+    
+    printk("[mm] Heap: 0x%lx - 0x%lx (%d KB)\n", 
+           (unsigned long)heap_start, 
+           (unsigned long)heap_end,
+           (int)(heap_end - heap_start) / 1024);
+    
+    // Initialize first free block
+    heap_head = (struct mem_block *)heap_start;
+    heap_head->size = heap_end - heap_start - sizeof(struct mem_block);
+    heap_head->free = 1;
+    heap_head->next = 0;
+
+    page_allocator_init();
+    
+    printk("[mm] Memory manager initialized.\n");
+}
+
+void *page_alloc_n(unsigned int count) {
+    if (count == 0 || count > page_count) return 0;
+    irq_state_t irq = irq_save();
+    unsigned int run = 0;
+    unsigned int start = 0;
+    for (unsigned int i = 0; i < page_count; i++) {
+        if (!page_bitmap[i]) {
+            if (run == 0) start = i;
+            run++;
+            if (run == count) {
+                for (unsigned int j = start; j < start + count; j++)
+                    page_bitmap[j] = 1;
+                pages_used += count;
+                unsigned char *result =
+                    (unsigned char *)page_pool_start + start * PAGE_SIZE;
+                for (unsigned long j = 0; j < (unsigned long)count * PAGE_SIZE; j++)
+                    result[j] = 0;
+                irq_restore(irq);
+                return result;
+            }
+        } else {
+            run = 0;
+        }
+    }
+    irq_restore(irq);
+    printk("[mm] Out of physical pages: requested %u, free %u\n",
+           count, page_count - pages_used);
+    return 0;
+}
+
+void *page_alloc(void) { return page_alloc_n(1); }
+
+void page_free_n(void *page, unsigned int count) {
+    if (!page || count == 0) return;
+    unsigned long address = (unsigned long)page;
+    unsigned long base = (unsigned long)page_pool_start;
+    unsigned long end = (unsigned long)page_pool_end;
+    if (address < base || address >= end || (address & (PAGE_SIZE - 1)) != 0) {
+        printk("[mm] Warning: invalid page free 0x%lx\n", address);
+        return;
+    }
+    unsigned int first = (unsigned int)((address - base) / PAGE_SIZE);
+    if (count > page_count - first) {
+        printk("[mm] Warning: page free range overflow\n");
+        return;
+    }
+    irq_state_t irq = irq_save();
+    for (unsigned int i = first; i < first + count; i++) {
+        if (!page_bitmap[i]) {
+            irq_restore(irq);
+            printk("[mm] Warning: double page free at 0x%lx\n",
+                   base + (unsigned long)i * PAGE_SIZE);
+            return;
+        }
+    }
+    for (unsigned int i = first; i < first + count; i++) page_bitmap[i] = 0;
+    pages_used -= count;
+    irq_restore(irq);
+}
+
+void page_free(void *page) { page_free_n(page, 1); }
+
+unsigned int page_free_count(void) {
+    irq_state_t irq = irq_save();
+    unsigned int result = page_count - pages_used;
+    irq_restore(irq);
+    return result;
+}
+
+int page_allocator_validate(void) {
+    irq_state_t irq = irq_save();
+    unsigned int counted = 0;
+    for (unsigned int i = 0; i < page_count; i++) {
+        if (page_bitmap[i] > 1) {
+            irq_restore(irq);
+            return -1;
+        }
+        counted += page_bitmap[i];
+    }
+    int valid = counted == pages_used && pages_used <= page_count;
+    irq_restore(irq);
+    return valid ? 0 : -1;
+}
+
+void *kmalloc(unsigned int size) {
+    if (!heap_head) {
+        printk("[mm] Error: heap not initialized\n");
+        return 0;
+    }
+    
+    if (size == 0) return 0;
+    if (size > (unsigned int)-1 - 7) {
+        printk("[mm] Allocation size overflow\n");
+        return 0;
+    }
+
+    irq_state_t irq = irq_save();
+
+    // Align size to 8 bytes
+    size = (size + 7) & ~7;
+    
+    struct mem_block *current = heap_head;
+    struct mem_block *best_fit = 0;
+    
+    // First-fit allocation strategy
+    while (current) {
+        if (current->free && current->size >= size) {
+            best_fit = current;
+            break;
+        }
+        current = current->next;
+    }
+    
+    if (!best_fit) {
+        irq_restore(irq);
+        printk("[mm] Out of memory: requested %d bytes\n", size);
+        return 0;
+    }
+    
+    // Split block if it's significantly larger than needed
+    if (best_fit->size > size + sizeof(struct mem_block) + 32) {
+        struct mem_block *new_block = (struct mem_block *)
+            ((char *)best_fit + sizeof(struct mem_block) + size);
+        
+        new_block->size = best_fit->size - size - sizeof(struct mem_block);
+        new_block->free = 1;
+        new_block->next = best_fit->next;
+        
+        best_fit->size = size;
+        best_fit->next = new_block;
+    }
+    
+    best_fit->free = 0;
+    total_allocated += best_fit->size;
+    
+    void *result = (char *)best_fit + sizeof(struct mem_block);
+    irq_restore(irq);
+    return result;
+}
+
+void kfree(void *ptr) {
+    if (!ptr) return;
+
+    irq_state_t irq = irq_save();
+
+    if ((char *)ptr < heap_start + (long)sizeof(struct mem_block) ||
+        (char *)ptr >= heap_end || ((unsigned long)ptr & 7) != 0) {
+        irq_restore(irq);
+        printk("[mm] Warning: invalid free pointer 0x%lx\n", (unsigned long)ptr);
+        return;
+    }
+
+    struct mem_block *block = (struct mem_block *)((char *)ptr - sizeof(struct mem_block));
+
+    /* Confirm that the pointer names the payload of a real block. This
+     * prevents an arbitrary address inside the heap from corrupting the
+     * allocator's linked list. */
+    struct mem_block *probe = heap_head;
+    while (probe && probe != block) probe = probe->next;
+    if (!probe) {
+        irq_restore(irq);
+        printk("[mm] Warning: free of unknown allocation 0x%lx\n",
+               (unsigned long)ptr);
+        return;
+    }
+    
+    if (block->free) {
+        irq_restore(irq);
+        printk("[mm] Warning: double free detected\n");
+        return;
+    }
+    
+    block->free = 1;
+    total_allocated -= block->size;
+    
+    // next block if it's free
+    if (block->next && block->next->free) {
+        block->size += block->next->size + sizeof(struct mem_block);
+        block->next = block->next->next;
+    }
+    
+    // previous block if it's free
+    struct mem_block *current = heap_head;
+    while (current && current->next != block) {
+        current = current->next;
+    }
+    
+    if (current && current->free) {
+        current->size += block->size + sizeof(struct mem_block);
+        current->next = block->next;
+    }
+    irq_restore(irq);
+}
+
+void mm_stats(void) {
+    irq_state_t irq = irq_save();
+    int total_free = 0;
+    int num_blocks = 0;
+    int num_free_blocks = 0;
+    
+    struct mem_block *current = heap_head;
+    while (current) {
+        num_blocks++;
+        if (current->free) {
+            num_free_blocks++;
+            total_free += current->size;
+        }
+        current = current->next;
+    }
+    
+    printk("[mm] Stats: %d blocks (%d free), %d bytes allocated, %d bytes free\n",
+           num_blocks, num_free_blocks, total_allocated, total_free);
+    irq_restore(irq);
+}

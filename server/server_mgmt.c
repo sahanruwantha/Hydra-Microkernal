@@ -1,6 +1,6 @@
 #include "servers.h"
-#include "../kernal/syscall.h"
-#include "../kernal/printk.h"
+#include "../kernel/syscall.h"
+#include "../kernel/printk.h"
 
 // Global server PID storage
 static int g_bullet_server_pid = -1;

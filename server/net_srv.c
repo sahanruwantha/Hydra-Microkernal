@@ -1,5 +1,5 @@
-#include "../kernal/syscall.h"
-#include "../kernal/printk.h"
+#include "../kernel/syscall.h"
+#include "../kernel/printk.h"
 #include <stddef.h>
 #include <stdint.h>
 #include <stdbool.h>
@@ -210,15 +210,16 @@ void process_network_packets(void) {
     
     if (packet_len > 0) {
         uint32_t current_packet_id = ++netserv_packet_counter;
-        
-        printk("[netserv] PACKET_NETSERV_START: Processing packet #%u (%d bytes) in network server\n", 
+        (void)current_packet_id;
+
+        trace_pk("[netserv] PACKET_NETSERV_START: Processing packet #%u (%d bytes) in network server\n", 
                current_packet_id, packet_len);
         
         // Analyze packet headers if available
         if (packet_len >= 14) {  // Ethernet header
-            printk("[netserv] PACKET_NETSERV_HEADERS: Packet #%u - Ethernet header detected\n", 
+            trace_pk("[netserv] PACKET_NETSERV_HEADERS: Packet #%u - Ethernet header detected\n", 
                    current_packet_id);
-            printk("[netserv] PACKET_NETSERV_ETH: Packet #%u - Dst: %02x:%02x:%02x:%02x:%02x:%02x, "
+            trace_pk("[netserv] PACKET_NETSERV_ETH: Packet #%u - Dst: %02x:%02x:%02x:%02x:%02x:%02x, "
                    "Src: %02x:%02x:%02x:%02x:%02x:%02x, Type: 0x%02x%02x\n",
                    current_packet_id,
                    packet_buffer[0], packet_buffer[1], packet_buffer[2], 
@@ -230,11 +231,11 @@ void process_network_packets(void) {
         
         // Check for IP packet
         if (packet_len >= 34 && packet_buffer[12] == 0x08 && packet_buffer[13] == 0x00) {
-            printk("[netserv] PACKET_NETSERV_IP: Packet #%u - IP packet detected (version %d)\n", 
+            trace_pk("[netserv] PACKET_NETSERV_IP: Packet #%u - IP packet detected (version %d)\n", 
                    current_packet_id, (packet_buffer[14] >> 4) & 0x0F);
         }
         
-        printk("[netserv] PACKET_NETSERV_ROUTING: Packet #%u - Looking for connected sockets\n", 
+        trace_pk("[netserv] PACKET_NETSERV_ROUTING: Packet #%u - Looking for connected sockets\n", 
                current_packet_id);
         
         // parse IP/TCP/UDP headers and route to the correct socket
@@ -243,7 +244,7 @@ void process_network_packets(void) {
             if (netserv.sockets[i].in_use && 
                 netserv.sockets[i].state == SOCK_CONNECTED) {
                 
-                printk("[netserv] PACKET_NETSERV_ROUTE: Packet #%u routed to socket %d (PID %d)\n", 
+                trace_pk("[netserv] PACKET_NETSERV_ROUTE: Packet #%u routed to socket %d (PID %d)\n", 
                        current_packet_id, i, netserv.sockets[i].owner_pid);
                 
                 socket_add_rx_data(&netserv.sockets[i], packet_buffer, packet_len);
@@ -253,10 +254,10 @@ void process_network_packets(void) {
         }
         
         if (!routed) {
-            printk("[netserv] PACKET_NETSERV_DROP: Packet #%u dropped - no connected sockets available\n", 
+            trace_pk("[netserv] PACKET_NETSERV_DROP: Packet #%u dropped - no connected sockets available\n", 
                    current_packet_id);
         } else {
-            printk("[netserv] PACKET_NETSERV_COMPLETE: Packet #%u successfully processed and routed\n", 
+            trace_pk("[netserv] PACKET_NETSERV_COMPLETE: Packet #%u successfully processed and routed\n", 
                    current_packet_id);
         }
     }

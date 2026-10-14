@@ -1,0 +1,16 @@
+
+=== Cross-node migration (source xmig-source.log, dest xmig-dest.log) ===
+  context filter: XMIG only (excludes net_test pings and the local migration sweep)
+  source fragmentations:     15   (of 35 net_send brackets in log)
+  destination reassemblies:   8   (of 8 net_recv brackets in log)
+  destination restores:       8   (of 69 restore brackets in log)
+
+phase                        mean ± 95% CI (cycles)          min          max
+--------------------------------------------------------------------------------
+source fragmentation           1665758 ± 118834          1421691      2243408
+dest reassembly                3007310 ± 881189          1365333      5818700
+dest restore                   1554185 ± 118416          1448351      1969120
+
+These are the FIRST cross-node migration cycle measurements on an
+open-source RISC-V microkernel. Transport is VirtIO-Net 1.1 modern
+MMIO over QEMU multicast socket (point-to-point between 2 QEMUs).

@@ -30,9 +30,9 @@
  * as BENCH lines for bench/analyze_micro.py.
  */
 
-#include "../kernal/sched.h"
-#include "../kernal/printk.h"
-#include "../kernal/ipc.h"
+#include "../kernel/sched.h"
+#include "../kernel/printk.h"
+#include "../kernel/ipc.h"
 
 /* Iteration counts. Kept modest so a run completes inside the QEMU
  * timeout, but large enough that the cycle counter's resolution and

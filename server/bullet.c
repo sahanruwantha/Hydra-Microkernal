@@ -1,5 +1,5 @@
-#include "../kernal/syscall.h"
-#include "../kernal/printk.h"
+#include "../kernel/syscall.h"
+#include "../kernel/printk.h"
 #include <stddef.h>
 
 // Bullet server - handles process migration

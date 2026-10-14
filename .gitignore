@@ -1,60 +1,42 @@
-# Prerequisites
-*.d
-
-# Object files
+# Generated kernel objects, runs, plots, and exported logs
+/build/
+/logs/
+/output/
 *.o
-*.ko
-*.obj
+*.d
 *.elf
-
-# Linker output
-*.ilk
-*.map
-*.exp
-
-# Precompiled Headers
-*.gch
-*.pch
-
-# Libraries
-*.lib
-*.a
-*.la
-*.lo
-
-# Shared objects (inc. Windows DLLs)
-*.dll
-*.so
-*.so.*
-*.dylib
-
-# Executables
-*.exe
-*.out
-*.app
-*.i*86
-*.x86_64
-*.hex
-
-# Debug files
-*.dSYM/
-*.su
-*.idb
-*.pdb
-
-# Kernel Module Compile Results
-*.mod*
-*.cmd
-.tmp_versions/
-modules.order
-Module.symvers
-Mkfile.old
-dkms.conf
-
-# Project specific
 *.bin
 *.iso
-isodir/
-
-# Log files
+*.image
+*.pcap
+*.pid
 *.log
+
+# Retained research evidence; new runs belong in build/bench/.
+!/bench/results/KERNEL.log
+!/bench/results/USERSPACE.log
+!/bench/results/micro.log
+!/bench/results/xmig-source.log
+!/bench/results/xmig-dest.log
+
+# Local Python environment and caches
+/.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Local editor settings and temporary document copies
+/.claude/
+/.codex/
+/.aws/
+.env
+.env.*
+!.env.example
+.DS_Store
+~$*
+*.tmp
+*.bak
+*.swp
+*.swo
+*.backup
+*.pre-correction

@@ -17,7 +17,7 @@ void test_libc(void) {
     // Test memory allocation
     char *buffer = (char*)malloc(100);
     if (buffer) {
-        printf("Allocated 100 bytes at address 0x%x\n", (int)buffer);
+        printf("Allocated 100 bytes at address 0x%lx\n", (unsigned long)buffer);
         strcpy(buffer, "Dynamic memory test");
         printf("Buffer content: '%s'\n", buffer);
         free(buffer);

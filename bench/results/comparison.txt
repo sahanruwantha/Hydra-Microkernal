@@ -1,0 +1,41 @@
+
+=== bench/results/KERNEL.log  (n=60 runs) ===
+metric                    mean ± 95% CI          p50          p95
+----------------------------------------------------------------------
+freeze_time               275362 ± 9117       265748       354996
+serialize_t             1078726 ± 55295      1005160      1450974
+transport_t              782891 ± 15123       770428       817506
+deserialize_t           1029199 ± 70017       931348      1418295
+total_latency          4061687 ± 145479      3836436      4834712
+
+  Per-payload-size totals (mean cycles, n per bucket):
+     bytes     n     total_latency      freeze_t     serialize_t
+         0    15           3676412        279182          891748
+      4096    15           3775194        281001          986232
+     16384    15           3938715        266445         1030872
+     65536    15           4856425        274819         1406050
+
+=== bench/results/USERSPACE.log  (n=60 runs) ===
+metric                    mean ± 95% CI          p50          p95
+----------------------------------------------------------------------
+freeze_time               272834 ± 7245       266492       300441
+serialize_t             1076715 ± 48517      1022396      1411244
+transport_t              785910 ± 14762       775651       863458
+deserialize_t           1016759 ± 59260       943702      1428381
+total_latency          4061801 ± 118173      3890159      4766749
+
+  Per-payload-size totals (mean cycles, n per bucket):
+     bytes     n     total_latency      freeze_t     serialize_t
+         0    15           3717464        281391          909546
+      4096    15           3889996        271750         1004634
+     16384    15           3955344        266710         1039814
+     65536    15           4684400        271484         1352867
+
+=== Comparison: KERNEL vs USERSPACE ===
+metric                   KERNEL      USERSPACE    ratio (B/A)
+----------------------------------------------------------------------
+freeze_time              275362         272834           0.99
+serialize_t             1078726        1076715           1.00
+transport_t              782891         785910           1.00
+deserialize_t           1029199        1016759           0.99
+total_latency           4061687        4061801           1.00

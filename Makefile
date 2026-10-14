@@ -5,10 +5,9 @@ AS = $(CROSS_COMPILE)gcc
 LD = $(CROSS_COMPILE)ld
 OBJCOPY = $(CROSS_COMPILE)objcopy
 
-# Migration mechanism placement. KERNEL = old Mach-style design with
-# distribution mechanism in the kernel; USERSPACE = mechanism in Bullet
-# server, kernel only exposes sys_checkpoint/sys_restore. Both builds
-# produce the same kernel.elf with one #ifdef toggled.
+# Historical comparison labels: direct supervisor call (KERNEL) versus
+# supervisor wrapper/dispatch (USERSPACE), both using the same primitives.
+# The local comparison does not measure a hardware privilege transition.
 MIGRATION_MODE ?= USERSPACE
 
 ifeq ($(MIGRATION_MODE),KERNEL)
@@ -54,10 +53,12 @@ endif
 # Make does not normally notice when a command-line build option changes.
 # Keep a small configuration stamp so switching migration/trace modes cannot
 # silently reuse objects compiled with the previous configuration.
-CONFIG_STAMP = .build-config
+BUILD_DIR := build
+KERNEL_IMAGE := $(BUILD_DIR)/kernel.elf
+CONFIG_STAMP := $(BUILD_DIR)/.build-config
 
 CFLAGS = -Wall -O2 -ffreestanding -nostdlib -nostartfiles -mcmodel=medany -MMD -MP \
-         -I./kernal -I./lib/libnet -I./lib/libc -I./lib/libhydra $(MIG_CFLAGS) \
+         -I./kernel -I./lib/libnet -I./lib/libc -I./lib/libhydra $(MIG_CFLAGS) \
          $(MEMOPS_CFLAGS) -DTRACE_PACKETS=$(TRACE_PACKETS) -DTRACE_SCHED=$(TRACE_SCHED) \
          -DTRACE_IPC=$(TRACE_IPC) \
          $(if $(filter-out 0,$(MICRO_BENCH)),-DMICRO_BENCH=1,)
@@ -65,8 +66,8 @@ ASFLAGS = -mcmodel=medany
 LDFLAGS = -T boot/linker.ld
 
 # Auto-detect source files
-KERNEL_C_SOURCES = $(wildcard kernal/*.c)
-KERNEL_S_SOURCES = $(wildcard kernal/*.s)
+KERNEL_C_SOURCES = $(wildcard kernel/*.c)
+KERNEL_S_SOURCES = $(wildcard kernel/*.s)
 LIBC_C_SOURCES = $(wildcard lib/libc/*.c)
 LIBNET_C_SOURCES = $(wildcard lib/libnet/*.c)
 LIBHYDRA_C_SOURCES = $(wildcard lib/libhydra/*.c)
@@ -83,15 +84,18 @@ SERVER_OBJS = $(SERVER_C_SOURCES:.c=.o)
 APPS_OBJS = $(APPS_C_SOURCES:.c=.o)
 
 # All object files
-OBJS = boot/start.o \
+OBJS = $(addprefix $(BUILD_DIR)/,boot/start.o \
        $(KERNEL_C_OBJS) $(KERNEL_S_OBJS) \
        $(LIBC_OBJS) $(LIBNET_OBJS) $(LIBHYDRA_OBJS) \
-       $(SERVER_OBJS) $(APPS_OBJS)
+       $(SERVER_OBJS) $(APPS_OBJS))
 
 DEPS = $(OBJS:.o=.d)
 -include $(DEPS)
 
-$(CONFIG_STAMP): FORCE
+$(BUILD_DIR):
+	mkdir -p $@
+
+$(CONFIG_STAMP): FORCE | $(BUILD_DIR)
 	@{ \
 	  echo "MIGRATION_MODE=$(MIGRATION_MODE)"; \
 	  echo "TRACE_PACKETS=$(TRACE_PACKETS)"; \
@@ -109,42 +113,20 @@ $(CONFIG_STAMP): FORCE
 
 $(OBJS): $(CONFIG_STAMP)
 
-all: kernel.elf
+all: $(KERNEL_IMAGE)
 
-boot/start.o: boot/start.s
+$(BUILD_DIR)/%.o: %.c
+	mkdir -p $(@D)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(BUILD_DIR)/%.o: %.s
+	mkdir -p $(@D)
 	$(CC) $(ASFLAGS) -c $< -o $@
 
-kernal/%.o: kernal/%.c
-	$(CC) $(CFLAGS) -c $< -o $@
-
-kernal/%.o: kernal/%.s
-	$(CC) $(ASFLAGS) -c $< -o $@
-
-lib/libnet/%.o: lib/libnet/%.c
-	$(CC) $(CFLAGS) -c $< -o $@
-
-lib/libc/%.o: lib/libc/%.c
-	$(CC) $(CFLAGS) -c $< -o $@
-
-lib/libnet/%.o: lib/libnet/%.c
-	$(CC) $(CFLAGS) -c $< -o $@
-
-lib/libhydra/%.o: lib/libhydra/%.c
-	$(CC) $(CFLAGS) -c $< -o $@
-
-server/%.o: server/%.c
-	$(CC) $(CFLAGS) -c $< -o $@
-
-apps/%.o: apps/%.c
-	$(CC) $(CFLAGS) -c $< -o $@
-
-apps/raytracer/%.o: apps/raytracer/%.c
-	$(CC) $(CFLAGS) -c $< -o $@
-
-kernel.elf: $(OBJS)
+$(KERNEL_IMAGE): $(OBJS)
 	@echo "Linking kernel..."
 	$(CC) $(CFLAGS) -o $@ $(OBJS) $(LDFLAGS)
-	@echo "Build complete: kernel.elf"
+	@echo "Build complete: $@"
 
 # Debug target to show detected files
 debug-files:
@@ -161,20 +143,20 @@ debug-files:
 
 clean:
 	@echo "Cleaning build artifacts..."
-	rm -f $(OBJS) $(DEPS) kernel.elf $(CONFIG_STAMP) $(CONFIG_STAMP).tmp
+	rm -rf -- build
 	@echo "Clean complete"
 
 # QEMU run targets
-run: kernel.elf
+run: $(KERNEL_IMAGE)
 	@echo "Starting QEMU..."
 	qemu-system-riscv64 -machine virt -nographic -kernel $<
 
-run-debug: kernel.elf
+run-debug: $(KERNEL_IMAGE)
 	@echo "Starting QEMU with GDB server..."
 	qemu-system-riscv64 -machine virt -nographic -kernel $< -s -S
 
 # Network-enabled QEMU (for testing network features)
-run-net: kernel.elf
+run-net: $(KERNEL_IMAGE)
 	@echo "Starting QEMU with network..."
 	qemu-system-riscv64 -machine virt -nographic -kernel $< \
 		-global virtio-mmio.force-legacy=false \
@@ -182,18 +164,18 @@ run-net: kernel.elf
 		-device virtio-net-device,netdev=net0
 
 # Distributed system test
-run-distributed: kernel.elf
+run-distributed: $(KERNEL_IMAGE)
 	@echo "Starting distributed system test..."
-	./test_distributed.sh start
+	./scripts/test_distributed.sh start
 
 stop-distributed:
 	@echo "Stopping distributed system test..."
-	./test_distributed.sh stop
+	./scripts/test_distributed.sh stop
 
 # Help target
 help:
 	@echo "Available targets:"
-	@echo "  all              - Build kernel.elf (default)"
+	@echo "  all              - Build build/kernel.elf (default)"
 	@echo "  clean            - Remove build artifacts"
 	@echo "  run              - Run kernel in QEMU"
 	@echo "  run-debug        - Run kernel in QEMU with GDB server"
@@ -219,6 +201,6 @@ help:
 	@echo "  MEMOPS_MODE      - WORD or BYTE (currently: $(MEMOPS_MODE))"
 	@echo "                     WORD is optimized; BYTE is the A/B baseline."
 
-.PHONY: all clean run run-debug run-net debug-files help FORCE
+.PHONY: all clean run run-debug run-net run-distributed stop-distributed debug-files help FORCE
 
 FORCE:

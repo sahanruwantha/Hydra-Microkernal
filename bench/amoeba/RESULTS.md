@@ -125,8 +125,8 @@ Fig. 6, null-RPC latency reported in the literature for other systems:
 | Sprite   | Sun 3/75 | 2.8 ms | 720 KB/s |
 | **Mach** | Sun 3/60 | **11.0 ms** | not reported |
 
-The Mach figure pairs with the existing Mach TCB comparison in
-`bench/fig_tcb_comparison.py`.
+The Mach figure pairs with Figure 4.7 in the current report
+(`docs/report/figures/figure-4-7.png`, relative to the repository root).
 
 ## Measured: kernel TCB
 

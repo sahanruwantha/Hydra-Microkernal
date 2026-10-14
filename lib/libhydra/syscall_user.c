@@ -1,4 +1,4 @@
-#include "../../kernal/syscall.h"
+#include "../../kernel/syscall.h"
 #include <stddef.h>
 
 // since ECALL handling is disabled due to stability issues
@@ -39,6 +39,18 @@ int syscall_create_task(void (*entry_point)(void)) {
 
 void syscall_exit(void) {
     handle_syscall(SYS_EXIT, 0, 0, 0, 0);
+}
+
+/* Migration: dump task <pid> into <buf> (<buflen> bytes). Returns bytes
+ * written, or -1 on error. The buffer must be at least
+ * checkpoint_size_for_task() bytes. */
+long syscall_checkpoint(int pid, void *buf, unsigned long buflen) {
+    return handle_syscall(SYS_CHECKPOINT, pid, (long)buf, (long)buflen, 0);
+}
+
+/* Migration: restore a task from <buf>. Returns new pid, or -1 on error. */
+long syscall_restore(const void *buf, unsigned long buflen) {
+    return handle_syscall(SYS_RESTORE, (long)buf, (long)buflen, 0, 0);
 }
 
 // I/O syscalls for libc

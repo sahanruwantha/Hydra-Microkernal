@@ -1,7 +1,7 @@
 // Simplified distributed raytracer stub for compilation
 // Full implementation would need proper memory management and string functions
 
-#include "../kernal/printk.h"
+#include "../kernel/printk.h"
 
 // Basic type definitions
 #ifndef UINT32_T_DEFINED
