@@ -20,6 +20,8 @@ static void copy_sink_task(void) {
     uint32_t response = COPY_RESPONSE;
     while (send_message((int)copy_user_pid, &response, sizeof(response)) < 0)
         task_yield();
+    /* Exercise a completed reply whose helper has not exited yet. */
+    task_yield();
 }
 
 /* This function is mapped at USER_CODE_BASE in a private Sv39 root. It has no
@@ -221,6 +223,11 @@ void isolation_self_test(void) {
         if (exited_pid == (uint32_t)copy_pid && copy_sink_received) break;
     }
     exit_code = sched_last_exit_code(&exited_pid);
+    /* Receiving the reply does not imply the helper has reclaimed its slot. */
+    for (int spins = 0; spins < 256 &&
+         task_find_by_pid((uint32_t)sink_pid); spins++) {
+        task_yield();
+    }
     if (!copy_sink_received || exited_pid != (uint32_t)copy_pid ||
         exit_code != copy_pid || get_active_task_count() != active_before ||
         page_free_count() != pages_before || page_allocator_validate() < 0) {
@@ -294,11 +301,12 @@ void isolation_self_test(void) {
     pages_before = page_free_count();
     int attacker_pid = create_user_task_arg(isolated_write_attack,
                                             (unsigned long)&tasks);
-    struct task *attacker = task_find_by_pid((uint32_t)attacker_pid);
-    if (attacker_pid < 0 || !attacker) {
+    if (attacker_pid < 0) {
         printk("[isotest] FAIL: could not create protection test task\n");
         return;
     }
+    /* Exercise completion before the creator inspects the exit result. */
+    task_yield();
     exited_pid = 0;
     for (int spins = 0; spins < 128; spins++) {
         task_yield();

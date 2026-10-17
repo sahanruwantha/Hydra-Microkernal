@@ -1,0 +1,35 @@
+HISTORICAL PERFORMANCE EVIDENCE
+Original retained logs · 15 observations × 4 extra-payload sizes × 2 modes = 120 observations
+Working directory: /home/sahan/Hydra-Microkernal
+
+$ python3 bench/analyze.py bench/results/KERNEL.log bench/results/USERSPACE.log >build/presentation-capture/historical-analysis.txt
+
+[exit 0]
+
+$ awk '/^=== .*log/ {print} /Per-payload-size totals/ {show=6} show-- > 0' build/presentation-capture/historical-analysis.txt
+=== bench/results/KERNEL.log  (n=60 runs) ===
+  Per-payload-size totals (mean cycles, n per bucket):
+     bytes     n     total_latency      freeze_t     serialize_t
+         0    15           3676412        279182          891748
+      4096    15           3775194        281001          986232
+     16384    15           3938715        266445         1030872
+     65536    15           4856425        274819         1406050
+=== bench/results/USERSPACE.log  (n=60 runs) ===
+  Per-payload-size totals (mean cycles, n per bucket):
+     bytes     n     total_latency      freeze_t     serialize_t
+         0    15           3717464        281391          909546
+      4096    15           3889996        271750         1004634
+     16384    15           3955344        266710         1039814
+     65536    15           4684400        271484         1352867
+[exit 0]
+
+$ sed -n '/^=== Comparison:/,$p' build/presentation-capture/historical-analysis.txt
+=== Comparison: KERNEL vs USERSPACE ===
+metric                   KERNEL      USERSPACE    ratio (B/A)
+----------------------------------------------------------------------
+freeze_time              275362         272834           0.99
+serialize_t             1078726        1076715           1.00
+transport_t              782891         785910           1.00
+deserialize_t           1029199        1016759           0.99
+total_latency           4061687        4061801           1.00
+[exit 0]

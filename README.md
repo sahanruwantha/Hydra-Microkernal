@@ -17,7 +17,7 @@ make clean                      # remove generated build/ files
 ```
 
 The executable is `build/kernel.elf`. At the console, `c` runs a local
-checkpoint/restore test, `r` runs fault recovery, and `d` shows node status.
+checkpoint/restore test, `r` runs fault recovery, and `d` shows test/network status.
 Boot also runs the scheduler, isolation, and 60-run local migration tests.
 
 ```bash
@@ -26,7 +26,12 @@ Boot also runs the scheduler, isolation, and 60-run local migration tests.
 
 The two-node acceptance test requires 60 local restores on each node,
 15 supervisor migrations, one isolated migration, 16 acknowledgements,
-and no unexpected failures. See [testing instructions](docs/testing.md).
+and no unexpected failures. It exits nonzero if a check fails. Exit an
+interactive QEMU session with **Ctrl+A, then X**.
+
+For a presentation rehearsal with saved logs and objective-by-objective
+evidence, run `./scripts/presentation_demo.sh`. See the
+[presentation demo guide](docs/demo.md) for commands and speaking points.
 
 ## Repository layout
 
@@ -34,11 +39,10 @@ and no unexpected failures. See [testing instructions](docs/testing.md).
 apps/          workloads, demonstrations, and in-kernel regression tests
 boot/          boot assembly and linker script
 kernel/        scheduler, memory, IPC, migration, drivers, and traps
-lib/           freestanding C, Hydra, and networking libraries
-server/        Bullet and network services
+lib/           checkpoint/restore wrappers and memory-copy primitives
 bench/         benchmark runners, analysis tools, and retained evidence
-scripts/       distributed-run, log, and paper-building utilities
-docs/          current report and figures, proposal, paper, and guides
+scripts/       presentation rehearsal
+docs/          final report, presentation, figures, and research reference
 build/         generated executable, objects, new logs, and plots (ignored)
 ```
 
@@ -46,15 +50,14 @@ build/         generated executable, objects, new logs, and plots (ignored)
 
 - [Current dissertation — Word](docs/report/Final_Report.docx)
 - [Current dissertation — PDF](docs/report/Final_Report.pdf)
-- [Report figures and revision notes](docs/report/README.md)
-- [Document index](docs/README.md)
+- [Report figures](docs/report/figures/)
+- [Presentation — PowerPoint](docs/presentation/Hydra_Research_Summary.pptx)
+- [Presentation — PDF](docs/presentation/Hydra_Research_Summary.pdf)
+- [Demo video, terminal images and capture evidence](docs/presentation/README.md)
+- [Process migration survey](docs/references/Process_Migration_Survey.pdf)
 - [Saved benchmark evidence and analysis](bench/README.md)
-- [Implementation history](docs/changes.md)
-- [Cleanup record](docs/cleanup.md)
 
 The current dissertation includes the supervisor feedback revision.
-The proposal and conference paper are earlier, separate documents; they have
-not been brought into line with that revision.
 
 ## Interpreting the measurements
 
@@ -69,17 +72,21 @@ UDP multicast without acknowledgement/retry. Later acknowledged transfer
 and isolated-process validation are separate engineering results. All cycle
 counts depend on the QEMU and host configuration.
 
+Saved timings and terminal recordings describe their captured revisions.
+New runs validate the current implementation and may have different startup
+output, task IDs and timings. The recording archives retain their original
+logs and source identity.
+
 The report discloses an unresolved historical checkpoint-size discrepancy:
 8,340 bytes claimed versus 8,344 bytes in the illustrated layout. Current
 version-4 checkpoint sizes do not resolve the earlier format discrepancy.
 
-## Optional document and plotting tools
+## Optional plotting tools
 
 ```bash
 python3 -m venv .venv
-.venv/bin/pip install matplotlib python-docx
+.venv/bin/pip install matplotlib
 ```
 
 Benchmark analysers use the Python standard library. Figure tools require
-matplotlib; paper building requires python-docx. Kernel builds have no Python
-or external runtime-library dependency.
+matplotlib. Kernel builds have no Python or external runtime-library dependency.

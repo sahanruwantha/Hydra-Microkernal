@@ -1,5 +1,6 @@
 #include "../kernel/sched.h"
 #include "../kernel/printk.h"
+#include "../kernel/timer.h"
 
 #define SCHED_STRESS_RUNS 32
 
@@ -7,6 +8,7 @@ static volatile unsigned int completed_tasks;
 static volatile unsigned long non_yield_counter;
 static volatile unsigned int register_test_done;
 static volatile unsigned int register_test_pass;
+static volatile unsigned long register_test_interrupts;
 
 static void returning_task(void) {
     completed_tasks++;
@@ -18,6 +20,7 @@ static void non_yielding_task(void) {
 }
 
 static void register_preservation_task(void) {
+    unsigned long interrupts_before = get_timer_ticks();
     register unsigned long passed asm("a0");
     asm volatile(
         "li t3, 0x13579\n"
@@ -47,6 +50,7 @@ static void register_preservation_task(void) {
         :
         : "t0", "t1", "t2", "t3", "t4", "t5", "a3", "s3", "f11", "memory");
     register_test_pass = (unsigned int)passed;
+    register_test_interrupts = get_timer_ticks() - interrupts_before;
     register_test_done = 1;
 }
 
@@ -102,20 +106,28 @@ void scheduler_self_test(void) {
 
     register_test_done = 0;
     register_test_pass = 0;
-    unsigned long time_before_ms = get_tick_count();
+    register_test_interrupts = 0;
+    unsigned long time_before;
+    asm volatile("rdtime %0" : "=r"(time_before));
     int register_pid = create_task(register_preservation_task);
     if (register_pid < 0) {
         printk("[schedtest] FAIL: could not create register test task\n");
         return;
     }
     for (int spins = 0; !register_test_done && spins < 64; spins++) task_yield();
-    unsigned long elapsed_ms = get_tick_count() - time_before_ms;
-    if (!register_test_done || !register_test_pass || elapsed_ms < 20) {
-        printk("[schedtest] FAIL: trap-frame preservation pass=%u elapsed=%u ms\n",
-               register_test_pass, (unsigned int)elapsed_ms);
+    unsigned long time_after;
+    asm volatile("rdtime %0" : "=r"(time_after));
+    /* Serviced ticks can lag elapsed time; use QEMU virt's 10 MHz timebase. */
+    unsigned long elapsed_ms = (time_after - time_before) / 10000UL;
+    if (!register_test_done || !register_test_pass || elapsed_ms < 20 ||
+        register_test_interrupts == 0) {
+        printk("[schedtest] FAIL: trap-frame preservation pass=%u elapsed=%u ms interrupts=%u\n",
+               register_test_pass, (unsigned int)elapsed_ms,
+               (unsigned int)register_test_interrupts);
         return;
     }
 
-    printk("[schedtest] PASS: %u returns, busy-task preemption, integer+FP frame (%u ms)\n",
-           completed_tasks, (unsigned int)elapsed_ms);
+    printk("[schedtest] PASS: %u returns, busy-task preemption, integer+FP frame (%u ms, %u timer interrupts)\n",
+           completed_tasks, (unsigned int)elapsed_ms,
+           (unsigned int)register_test_interrupts);
 }

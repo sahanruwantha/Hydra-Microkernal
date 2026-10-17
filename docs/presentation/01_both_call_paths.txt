@@ -1,0 +1,56 @@
+CURRENT FUNCTIONAL VALIDATION
+Fresh QEMU tests · 60 local restores per mode · current implementation
+Working directory: /home/sahan/Hydra-Microkernal
+
+$ make -s MIGRATION_MODE=KERNEL
+Build configuration changed; recompiling objects
+Linking kernel...
+Build complete: build/kernel.elf
+[exit 0]
+
+$ timeout 60s qemu-system-riscv64 -machine virt -nographic -kernel build/kernel.elf -global virtio-mmio.force-legacy=false -netdev user,id=net0 -device virtio-net-device,netdev=net0 </dev/null >build/presentation-capture/KERNEL-current.log 2>&1
+
+[exit 124: capture timeout reached, expected; required completion/PASS markers verified]
+
+$ grep -aE 'Migration mode:|BENCH_DONE' build/presentation-capture/KERNEL-current.log
+ Migration mode: KERNEL-RESIDENT
+[main] BENCH_DONE auto_runs=60
+[exit 0]
+
+$ grep -acF '[migtest] PASS: restored task is running' build/presentation-capture/KERNEL-current.log
+60
+[exit 0]
+
+$ grep -aF '[fdemo] PASS:' build/presentation-capture/KERNEL-current.log
+[fdemo] PASS: workload recovered from simulated fault
+[exit 0]
+
+$ make -s MIGRATION_MODE=USERSPACE
+Build configuration changed; recompiling objects
+Linking kernel...
+Build complete: build/kernel.elf
+[exit 0]
+
+$ timeout 60s qemu-system-riscv64 -machine virt -nographic -kernel build/kernel.elf -global virtio-mmio.force-legacy=false -netdev user,id=net0 -device virtio-net-device,netdev=net0 </dev/null >build/presentation-capture/USERSPACE-current.log 2>&1
+
+[exit 124: capture timeout reached, expected; required completion/PASS markers verified]
+
+$ grep -aE 'Migration mode:|BENCH_DONE' build/presentation-capture/USERSPACE-current.log
+ Migration mode: USER-SPACE
+[main] BENCH_DONE auto_runs=60
+[exit 0]
+
+$ grep -acF '[migtest] PASS: restored task is running' build/presentation-capture/USERSPACE-current.log
+60
+[exit 0]
+
+$ grep -aF '[fdemo] PASS:' build/presentation-capture/USERSPACE-current.log
+[fdemo] PASS: workload recovered from simulated fault
+[exit 0]
+
+$ grep -nE 'long (n|new_pid) = (migration_|syscall_)(checkpoint|restore)' apps/migration_test.c
+95:    long n = migration_checkpoint((uint32_t)victim_pid,
+98:    long n = syscall_checkpoint(victim_pid, migration_buf, sizeof(migration_buf));
+116:    long new_pid = migration_restore(migration_buf, n);
+118:    long new_pid = syscall_restore(migration_buf, n);
+[exit 0]

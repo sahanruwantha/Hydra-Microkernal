@@ -34,6 +34,7 @@ __pycache__/
 !.env.example
 .DS_Store
 ~$*
+.~lock.*#
 *.tmp
 *.bak
 *.swp

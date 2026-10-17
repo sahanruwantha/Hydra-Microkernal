@@ -103,7 +103,6 @@ struct task {
 };
 
 // External assembly function
-extern void context_switch(struct task_context *old, struct task_context *new);
 extern void set_trap_vector(void);
 
 // External variables
@@ -113,25 +112,17 @@ extern int num_tasks;
 
 // Function declarations
 void sched_init(void);
-void schedule(void);
-void sched_tick(void);
-/* Interrupt-safe wall-clock accounting; scheduling uses sched_from_trap(). */
-void sched_timer_tick(uint64_t elapsed_ms);
 int create_task(void (*entry)(void));
 int create_user_task(void (*entry)(void));
 int create_user_task_arg(void (*entry)(void), unsigned long arg0);
 int create_migrated_user_task(void);
 int create_migrated_task(void);
 void task_yield(void);
-void suspend_task(uint32_t task_id);
 void resume_task(uint32_t task_id);
 void terminate_task(uint32_t task_id);
 uint32_t get_active_task_count(void);
-uint32_t get_memory_usage_percent(void);
-uint64_t get_tick_count(void);
 /* PID-safe lifecycle helpers. PIDs are opaque and are not task slots. */
 struct task *task_find_by_pid(uint32_t pid);
-int task_set_state(uint32_t pid, task_state_t state);
 int task_slot_from_pid(uint32_t pid);
 int task_current_pid(void);
 int sched_validate(void);

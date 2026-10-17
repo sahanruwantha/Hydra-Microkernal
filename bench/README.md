@@ -33,7 +33,9 @@ make MICRO_BENCH=1 TRACE_IPC=0
 output is `build/bench/USERSPACE.log` or `build/bench/KERNEL.log`.
 `micro_bench.sh` defaults to `build/bench/micro.log`. Two-node acceptance writes
 `/tmp/hydra-node1.log` and `/tmp/hydra-node2.log` plus packet captures.
-See [testing](../docs/testing.md) for a full tagged boot sweep.
+Set `HYDRA_LOG_DIR` to capture the two-node files elsewhere, or use
+`./scripts/presentation_demo.sh` for a saved presentation rehearsal.
+See the [demo guide](../docs/demo.md) for boot checks and a complete rehearsal.
 
 ## Diagnostic plots
 

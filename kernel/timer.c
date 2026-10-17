@@ -1,3 +1,4 @@
+#include "timer.h"
 #include "printk.h"
 #include "sched.h"
 #include "uart.h"
@@ -69,12 +70,6 @@ static inline void write_stimecmp(unsigned long value) {
 #define TIMER_INTERVAL 100000
 #endif
 
-/* QEMU virt drives mtime/rdtime at 10MHz. */
-#define TIMEBASE_HZ 10000000UL
-/* Milliseconds advanced per tick, derived so the two stay in step if
- * TIMER_INTERVAL changes. At 1kHz this is exactly 1. */
-#define TICK_MS (TIMER_INTERVAL / (TIMEBASE_HZ / 1000))
-
 static unsigned long timer_ticks = 0;
 
 // Install the S-mode trap vector and enable the supervisor timer
@@ -139,9 +134,7 @@ struct trap_frame *trap_handler(unsigned long cause, unsigned long epc,
 
         // Network activity now handled by polling in net_receive()
 
-        /* Account time, then let the full-frame scheduler choose which
-         * task trap_entry will restore with sret. */
-        sched_timer_tick(TICK_MS);
+        /* Choose the complete task frame that trap_entry restores with sret. */
         in_trap = 0;
         return sched_from_trap(frame, 1);
     }
@@ -208,11 +201,4 @@ struct trap_frame *trap_handler(unsigned long cause, unsigned long epc,
 
 unsigned long get_timer_ticks(void) {
     return timer_ticks;
-}
-
-uint64_t get_uptime_ms(void) {
-    /* Derived from TIMER_INTERVAL rather than hardcoded: the old
-     * "* 100" assumed a 10Hz tick and would over-report by 100x now
-     * that the timer runs at 1kHz. */
-    return (uint64_t)timer_ticks * TICK_MS;
 }

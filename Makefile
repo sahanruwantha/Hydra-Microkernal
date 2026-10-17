@@ -58,7 +58,7 @@ KERNEL_IMAGE := $(BUILD_DIR)/kernel.elf
 CONFIG_STAMP := $(BUILD_DIR)/.build-config
 
 CFLAGS = -Wall -O2 -ffreestanding -nostdlib -nostartfiles -mcmodel=medany -MMD -MP \
-         -I./kernel -I./lib/libnet -I./lib/libc -I./lib/libhydra $(MIG_CFLAGS) \
+         -I./kernel -I./lib/libc -I./lib/libhydra $(MIG_CFLAGS) \
          $(MEMOPS_CFLAGS) -DTRACE_PACKETS=$(TRACE_PACKETS) -DTRACE_SCHED=$(TRACE_SCHED) \
          -DTRACE_IPC=$(TRACE_IPC) \
          $(if $(filter-out 0,$(MICRO_BENCH)),-DMICRO_BENCH=1,)
@@ -69,25 +69,20 @@ LDFLAGS = -T boot/linker.ld
 KERNEL_C_SOURCES = $(wildcard kernel/*.c)
 KERNEL_S_SOURCES = $(wildcard kernel/*.s)
 LIBC_C_SOURCES = $(wildcard lib/libc/*.c)
-LIBNET_C_SOURCES = $(wildcard lib/libnet/*.c)
 LIBHYDRA_C_SOURCES = $(wildcard lib/libhydra/*.c)
-SERVER_C_SOURCES = $(wildcard server/*.c)
-APPS_C_SOURCES = $(wildcard apps/*.c) $(wildcard apps/raytracer/*.c)
+APPS_C_SOURCES = $(wildcard apps/*.c)
 
 # Convert sources to object files
 KERNEL_C_OBJS = $(KERNEL_C_SOURCES:.c=.o)
 KERNEL_S_OBJS = $(KERNEL_S_SOURCES:.s=.o)
 LIBC_OBJS = $(LIBC_C_SOURCES:.c=.o)
-LIBNET_OBJS = $(LIBNET_C_SOURCES:.c=.o)
 LIBHYDRA_OBJS = $(LIBHYDRA_C_SOURCES:.c=.o)
-SERVER_OBJS = $(SERVER_C_SOURCES:.c=.o)
 APPS_OBJS = $(APPS_C_SOURCES:.c=.o)
 
 # All object files
 OBJS = $(addprefix $(BUILD_DIR)/,boot/start.o \
        $(KERNEL_C_OBJS) $(KERNEL_S_OBJS) \
-       $(LIBC_OBJS) $(LIBNET_OBJS) $(LIBHYDRA_OBJS) \
-       $(SERVER_OBJS) $(APPS_OBJS))
+       $(LIBC_OBJS) $(LIBHYDRA_OBJS) $(APPS_OBJS))
 
 DEPS = $(OBJS:.o=.d)
 -include $(DEPS)
@@ -133,9 +128,7 @@ debug-files:
 	@echo "Detected C sources:"
 	@echo "  Kernel: $(KERNEL_C_SOURCES)"
 	@echo "  LibC: $(LIBC_C_SOURCES)"
-	@echo "  LibNet: $(LIBNET_C_SOURCES)"
 	@echo "  LibHydra: $(LIBHYDRA_C_SOURCES)"
-	@echo "  Server: $(SERVER_C_SOURCES)"
 	@echo "  Apps: $(APPS_C_SOURCES)"
 	@echo "Detected S sources:"
 	@echo "  Kernel: $(KERNEL_S_SOURCES)"
@@ -163,14 +156,10 @@ run-net: $(KERNEL_IMAGE)
 		-netdev user,id=net0 \
 		-device virtio-net-device,netdev=net0
 
-# Distributed system test
+# Bounded two-node migration acceptance test
 run-distributed: $(KERNEL_IMAGE)
 	@echo "Starting distributed system test..."
-	./scripts/test_distributed.sh start
-
-stop-distributed:
-	@echo "Stopping distributed system test..."
-	./scripts/test_distributed.sh stop
+	./bench/two_node_test.sh
 
 # Help target
 help:
@@ -180,8 +169,7 @@ help:
 	@echo "  run              - Run kernel in QEMU"
 	@echo "  run-debug        - Run kernel in QEMU with GDB server"
 	@echo "  run-net          - Run kernel in QEMU with network"
-	@echo "  run-distributed  - Start distributed system test (2 nodes)"
-	@echo "  stop-distributed - Stop distributed system test"
+	@echo "  run-distributed  - Run bounded two-node migration acceptance (60s)"
 	@echo "  debug-files      - Show detected source files"
 	@echo "  help             - Show this help"
 	@echo ""
@@ -201,6 +189,6 @@ help:
 	@echo "  MEMOPS_MODE      - WORD or BYTE (currently: $(MEMOPS_MODE))"
 	@echo "                     WORD is optimized; BYTE is the A/B baseline."
 
-.PHONY: all clean run run-debug run-net run-distributed stop-distributed debug-files help FORCE
+.PHONY: all clean run run-debug run-net run-distributed debug-files help FORCE
 
 FORCE:

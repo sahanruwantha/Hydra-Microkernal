@@ -166,9 +166,9 @@ def main(argv):
         ("dest restore", [b - a for a, b in user_rest_pairs]),
     ))
 
-    print(f"\nThese are the FIRST cross-node migration cycle measurements on an")
-    print(f"open-source RISC-V microkernel. Transport is VirtIO-Net 1.1 modern")
-    print(f"MMIO over QEMU multicast socket (point-to-point between 2 QEMUs).")
+    print("\nIntervals use node-local QEMU cycle counters; source and destination")
+    print("means are not a paired end-to-end latency. The isolated sample is")
+    print("reported separately and does not establish a performance distribution.")
 
 if __name__ == "__main__":
     sys.exit(main(sys.argv))

@@ -42,8 +42,6 @@ typedef unsigned long size_t;
 #define VMMIO_QUEUE_NUM           0x038
 #define VMMIO_QUEUE_READY         0x044
 #define VMMIO_QUEUE_NOTIFY        0x050
-#define VMMIO_INTERRUPT_STATUS    0x060
-#define VMMIO_INTERRUPT_ACK       0x064
 #define VMMIO_STATUS              0x070
 #define VMMIO_QUEUE_DESC_LOW      0x080
 #define VMMIO_QUEUE_DESC_HIGH     0x084
@@ -498,9 +496,3 @@ struct net_packet *net_receive(void) {
 }
 
 struct net_stats *net_get_stats(void) { return &stats; }
-
-void net_interrupt_handler(void) {
-    if (mmio_base == 0) return;
-    uint32_t st = rreg(VMMIO_INTERRUPT_STATUS);
-    wreg(VMMIO_INTERRUPT_ACK, st);
-}

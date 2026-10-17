@@ -19,7 +19,6 @@ static void *k_memset(void *s, int c, size_t n) {
 struct task tasks[MAX_TASKS];
 int current_task = 0;
 int num_tasks = 0;
-static uint64_t tick_counter = 0;
 static uint32_t next_pid = 1;
 static int preemption_enabled = 0;
 static uint32_t last_exit_pid;
@@ -132,54 +131,6 @@ int sched_validate(void) {
         }
     }
     return running == 1 && tasks[current_task].state == TASK_RUNNING ? 0 : -1;
-}
-
-int task_set_state(uint32_t pid, task_state_t state) {
-    irq_state_t irq = irq_save();
-    struct task *task = task_find_by_pid(pid);
-    if (!task) {
-        irq_restore(irq);
-        return -1;
-    }
-    task->state = state;
-    irq_restore(irq);
-    return 0;
-}
-
-void idle_task1(void) {
-    static int count = 0;
-    while (1) {
-        count++;
-        if (count % 1000 == 0) {
-            printk("[Task 1] Running (count: %d)...\n", count);
-        }
-        for (volatile int i = 0; i < 100000; i++);
-        task_yield();
-    }
-}
-
-void idle_task2(void) {
-    static int count = 0;
-    while (1) {
-        count++;
-        if (count % 1000 == 0) {
-            printk("[Task 2] Running (count: %d)...\n", count);
-        }
-        for (volatile int i = 0; i < 100000; i++);
-        task_yield();
-    }
-}
-
-void idle_task3(void) {
-    static int count = 0;
-    while (1) {
-        count++;
-        if (count % 1000 == 0) {
-            printk("[Task 3] Running (count: %d)...\n", count);
-        }
-        for (volatile int i = 0; i < 100000; i++);
-        task_yield();
-    }
 }
 
 void sched_init(void) {
@@ -331,8 +282,6 @@ int create_migrated_user_task(void) {
                                      0, TASK_BLOCKED);
 }
 
-void schedule(void) { task_yield(); }
-
 void task_yield(void) {
     if (num_tasks <= 1) return;
     register unsigned long syscall_no asm("a7") = 6;
@@ -412,35 +361,6 @@ long sched_last_exit_code(uint32_t *pid) {
     return last_exit_code;
 }
 
-/* Advance wall-clock accounting in interrupt context. Context selection is
- * performed separately by sched_from_trap(), after the complete register
- * frame has been captured by trap_entry. */
-void sched_timer_tick(uint64_t elapsed_ms) {
-    /* Advance by elapsed milliseconds, not by 1. Callers of
-     * get_tick_count() treat it as milliseconds — HEARTBEAT_INTERVAL is
-     * "5000 // 5 seconds in ms", the migration timeout is "30000 // 30
-     * second timeout". Incrementing per-tick instead would rescale both
-     * whenever the timer frequency changed. */
-    tick_counter += elapsed_ms;
-}
-
-void sched_tick(void) {
-    // Called by timer interrupt - be quiet to avoid spam
-    static int tick_count = 0;
-    tick_count++;
-    tick_counter++;
-    
-    // Only print every 50 ticks to reduce output
-    if (tick_count % 50 == 0) {
-        trace_sched("[sched] Timer tick %d\n", tick_count);
-    }
-    
-    // Only schedule if we have tasks and they're ready
-    if (num_tasks > 1) {
-        schedule();
-    }
-}
-
 int create_migrated_task(void) {
     irq_state_t irq = irq_save();
     int task_id = find_free_slot();
@@ -475,20 +395,6 @@ int create_migrated_task(void) {
     int pid = new_task->pid;
     irq_restore(irq);
     return pid;
-}
-
-void suspend_task(uint32_t task_id) {
-    irq_state_t irq = irq_save();
-    struct task *task = task_find_by_pid(task_id);
-    if (!task) {
-        irq_restore(irq);
-        printk("[sched] Invalid task ID for suspend: %u\n", task_id);
-        return;
-    }
-
-    task->state = TASK_BLOCKED;
-    printk("[sched] Suspended task %u\n", task_id);
-    irq_restore(irq);
 }
 
 void resume_task(uint32_t task_id) {
@@ -551,13 +457,4 @@ uint32_t get_active_task_count(void) {
         }
     }
     return count;
-}
-
-uint32_t get_memory_usage_percent(void) {
-    uint32_t used_tasks = get_active_task_count();
-    return (used_tasks * 100) / MAX_TASKS;
-}
-
-uint64_t get_tick_count(void) {
-    return tick_counter;
 }

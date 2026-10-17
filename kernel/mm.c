@@ -6,7 +6,6 @@
 static struct mem_block *heap_head = 0;
 static char *heap_start;
 static char *heap_end;
-static unsigned int total_allocated = 0;
 
 #define PAGE_POOL_MAX_PAGES 4096
 static unsigned char page_bitmap[PAGE_POOL_MAX_PAGES];
@@ -184,84 +183,8 @@ void *kmalloc(unsigned int size) {
     }
     
     best_fit->free = 0;
-    total_allocated += best_fit->size;
     
     void *result = (char *)best_fit + sizeof(struct mem_block);
     irq_restore(irq);
     return result;
-}
-
-void kfree(void *ptr) {
-    if (!ptr) return;
-
-    irq_state_t irq = irq_save();
-
-    if ((char *)ptr < heap_start + (long)sizeof(struct mem_block) ||
-        (char *)ptr >= heap_end || ((unsigned long)ptr & 7) != 0) {
-        irq_restore(irq);
-        printk("[mm] Warning: invalid free pointer 0x%lx\n", (unsigned long)ptr);
-        return;
-    }
-
-    struct mem_block *block = (struct mem_block *)((char *)ptr - sizeof(struct mem_block));
-
-    /* Confirm that the pointer names the payload of a real block. This
-     * prevents an arbitrary address inside the heap from corrupting the
-     * allocator's linked list. */
-    struct mem_block *probe = heap_head;
-    while (probe && probe != block) probe = probe->next;
-    if (!probe) {
-        irq_restore(irq);
-        printk("[mm] Warning: free of unknown allocation 0x%lx\n",
-               (unsigned long)ptr);
-        return;
-    }
-    
-    if (block->free) {
-        irq_restore(irq);
-        printk("[mm] Warning: double free detected\n");
-        return;
-    }
-    
-    block->free = 1;
-    total_allocated -= block->size;
-    
-    // next block if it's free
-    if (block->next && block->next->free) {
-        block->size += block->next->size + sizeof(struct mem_block);
-        block->next = block->next->next;
-    }
-    
-    // previous block if it's free
-    struct mem_block *current = heap_head;
-    while (current && current->next != block) {
-        current = current->next;
-    }
-    
-    if (current && current->free) {
-        current->size += block->size + sizeof(struct mem_block);
-        current->next = block->next;
-    }
-    irq_restore(irq);
-}
-
-void mm_stats(void) {
-    irq_state_t irq = irq_save();
-    int total_free = 0;
-    int num_blocks = 0;
-    int num_free_blocks = 0;
-    
-    struct mem_block *current = heap_head;
-    while (current) {
-        num_blocks++;
-        if (current->free) {
-            num_free_blocks++;
-            total_free += current->size;
-        }
-        current = current->next;
-    }
-    
-    printk("[mm] Stats: %d blocks (%d free), %d bytes allocated, %d bytes free\n",
-           num_blocks, num_free_blocks, total_allocated, total_free);
-    irq_restore(irq);
 }

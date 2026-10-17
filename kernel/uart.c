@@ -47,6 +47,8 @@ void uart_putc(char c) {
 
 char uart_getc(void) {
     irq_state_t irq = irq_save();
+    /* Poll as well: console input must work without PLIC interrupt routing. */
+    uart_interrupt_handler();
     // Read from interrupt-driven buffer
     if (buffer_count == 0) {
         irq_restore(irq);
@@ -64,13 +66,6 @@ void uart_puts(const char *s) {
     while (*s) {
         uart_putc(*s++);
     }
-}
-
-int uart_has_data(void) {
-    irq_state_t irq = irq_save();
-    int result = buffer_count > 0;
-    irq_restore(irq);
-    return result;
 }
 
 void uart_interrupt_handler(void) {

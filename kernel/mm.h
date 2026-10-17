@@ -21,8 +21,6 @@ extern char __page_pool_end;
 // Function declarations
 void mm_init(void);
 void *kmalloc(unsigned int size);
-void kfree(void *ptr);
-void mm_stats(void);
 void *page_alloc(void);
 void *page_alloc_n(unsigned int count);
 void page_free(void *page);

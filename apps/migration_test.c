@@ -71,8 +71,7 @@ void migration_self_test(void) {
     }
     printk("[migtest] victim task pid=%d created\n", victim_pid);
 
-    /* 2) Let the scheduler hand control to the victim a few times so
-     * its context gets saved in t->context via context_switch. */
+    /* 2) Yield so the victim runs and its resumable trap frame is saved. */
     int counter_before;
     for (int i = 0; i < 20; i++) {
         task_yield();
